@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { exportJarMarkdown } from "@/lib/export/markdown";
-import { parseSnapshot } from "@/lib/snapshot";
+import { exportPostsMarkdown } from "@/lib/export/markdown";
 import { anchorUrl, sourceTitle, sourceUrl } from "@/lib/sources";
 
 const para = (...content: unknown[]) => ({ type: "paragraph", content });
@@ -39,50 +38,78 @@ describe("source links", () => {
   });
 });
 
-describe("exportJarMarkdown", () => {
-  const out = exportJarMarkdown({
-    work: { kind: "anime", title: "星际牛仔", title_original: "Cowboy Bebop", external: { bangumi: "253" } },
-    sources: [yt, bili, book],
-    notes: [
-      { source_id: "s1", anchor: { t: 900 }, body: doc(para(text("后面的 "), chip({ t: 754 }), text(" 才是重点"))) },
-      { source_id: "s1", anchor: { t: 754, t_end: 760 }, body: doc(para(text("这里的转场"))) },
-      { source_id: "s1", anchor: null, body: doc(para(text("整体感想"))) },
-      { source_id: "s3", anchor: { page: 132, quote: "一句话摘录" }, body: doc(para(text("我的想法"))) },
-      { source_id: null, anchor: null, body: doc(para(text("游离的笔记"))) },
+describe("exportPostsMarkdown", () => {
+  const post = (extra: Record<string, unknown>) => ({
+    created_at: "2026-10-24T08:00:00Z",
+    visibility: "public" as const,
+    tags: [],
+    source: null,
+    anchor: null,
+    body: doc(),
+    plain_text: "",
+    ...extra,
+  });
+
+  const out = exportPostsMarkdown({
+    posts: [
+      post({
+        tags: [{ name: "动漫" }, { name: "星际牛仔" }],
+        source: { provider: yt.provider, ref: yt.ref, meta: yt.meta },
+        anchor: { t: 754, t_end: 760 },
+        body: doc(para(text("这里的转场，对照 "), chip({ t: 900 }), text(" 的收尾"))),
+        plain_text: "这里的转场，对照 15:00 的收尾",
+      }),
+      post({
+        visibility: "private",
+        source: { provider: bili.provider, ref: bili.ref, meta: bili.meta },
+        source_status: "dead",
+        body: doc(para(text("已经看不了了"))),
+        plain_text: "已经看不了了",
+      }),
+      post({
+        tags: [{ name: "读书 笔记" }],
+        anchor: { page: 132, quote: "一句话摘录" },
+        body: doc(para(text("我的想法"))),
+        plain_text: "我的想法",
+      }),
     ],
     exportedAt: "2026-10-24",
   });
 
   it("matches the expected document", () => {
-    expect(out).toBe(`# 星际牛仔
+    expect(out).toBe(`# 我在 zan 攒下的内容
 
-_Cowboy Bebop · 动画_ — [Bangumi](https://bgm.tv/subject/253)
+## OP 解析
 
-## 资源
+_2026-10-24_
 
-- [OP 解析](https://youtu.be/dQw4w9WgXcQ) — YouTube · 某某 · 12:34
-- [第二集 · P2](https://www.bilibili.com/video/BV1GJ411x7h7?p=2) — 哔哩哔哩 · 已失效
-- 中文版 — 书
+#动漫 #星际牛仔
 
-## 笔记
+来源：[OP 解析](https://youtu.be/dQw4w9WgXcQ) — YouTube · 某某 · 12:34
 
-### OP 解析
+**[12:34–12:40](https://youtu.be/dQw4w9WgXcQ?t=754)**
 
-- **[12:34–12:40](https://youtu.be/dQw4w9WgXcQ?t=754)** 这里的转场
-- **[15:00](https://youtu.be/dQw4w9WgXcQ?t=900)** 后面的 [12:34](https://youtu.be/dQw4w9WgXcQ?t=754) 才是重点
-- 整体感想
+这里的转场，对照 [15:00](https://youtu.be/dQw4w9WgXcQ?t=900) 的收尾
 
-### 中文版
+## 第二集 · P2
 
-- **p.132**
+_2026-10-24 · 仅自己可见_
 
-  > 一句话摘录
+来源：[第二集 · P2](https://www.bilibili.com/video/BV1GJ411x7h7?p=2) — 哔哩哔哩 · 已失效
 
-  我的想法
+已经看不了了
 
-### 未关联资源
+## 我的想法
 
-- 游离的笔记
+_2026-10-24_
+
+#读书\\_笔记
+
+**p.132**
+
+> 一句话摘录
+
+我的想法
 
 ---
 
@@ -90,53 +117,21 @@ _Cowboy Bebop · 动画_ — [Bangumi](https://bgm.tv/subject/253)
 `);
   });
 
-  it("never emits raw html from note text", () => {
-    const evil = exportJarMarkdown({
-      work: { kind: "other", title: "<script>alert(1)</script>", title_original: null, external: {} },
-      sources: [],
-      notes: [{ source_id: null, anchor: null, body: doc(para(text("<img src=x onerror=alert(1)>"))) }],
+  it("never emits raw html from post text", () => {
+    const evil = exportPostsMarkdown({
+      posts: [
+        post({
+          tags: [{ name: "<b>" }],
+          body: doc(para(text("<img src=x onerror=alert(1)>"))),
+          plain_text: "<script>alert(1)</script>",
+        }),
+      ],
     });
     // every "<" is backslash-escaped, so Markdown renderers show it as text
     expect(evil).not.toMatch(/(^|[^\\])</m);
   });
 
-  it("copes with an empty jar", () => {
-    const empty = exportJarMarkdown({ work: { kind: "book", title: "空", title_original: null, external: {} }, sources: [], notes: [] });
-    expect(empty).toBe("# 空\n\n_书_\n");
-  });
-});
-
-describe("parseSnapshot", () => {
-  const good = {
-    schema: 1,
-    work: { kind: "book", title: "T", title_original: null, cover_url: null, external: { isbn: "9780441478125" } },
-    sources: [{ id: "s1", provider: "youtube", ref: { videoId: "dQw4w9WgXcQ" }, meta: { title: "x" }, status: "ok" }],
-    notes: [{ id: "n1", source_id: "s1", anchor: { t: 5 }, body: doc(), updated_at: "2026-01-01T00:00:00Z" }],
-  };
-
-  it("parses what publish_jar writes", () => {
-    const snap = parseSnapshot(good);
-    expect(snap?.work.title).toBe("T");
-    expect(snap?.sources).toHaveLength(1);
-    expect(snap?.notes[0].anchor).toEqual({ t: 5 });
-  });
-
-  it("degrades instead of crashing on bad rows", () => {
-    const snap = parseSnapshot({
-      ...good,
-      work: { ...good.work, kind: "wat" },
-      sources: [...good.sources, { id: "x", provider: "tiktok" }, "junk"],
-      notes: [{ ...good.notes[0], anchor: { t: -1 } }, 42],
-    });
-    expect(snap?.work.kind).toBe("other");
-    expect(snap?.sources).toHaveLength(1);
-    expect(snap?.notes).toHaveLength(1);
-    expect(snap?.notes[0].anchor).toBeNull();
-  });
-
-  it("rejects things that are not snapshots", () => {
-    expect(parseSnapshot(null)).toBeNull();
-    expect(parseSnapshot({})).toBeNull();
-    expect(parseSnapshot({ work: { title: "" } })).toBeNull();
+  it("copes with no posts", () => {
+    expect(exportPostsMarkdown({ posts: [] })).toBe("# 我在 zan 攒下的内容\n");
   });
 });

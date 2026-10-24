@@ -1,6 +1,5 @@
 /* eslint-disable @next/next/no-img-element -- covers come from third-party hosts that block hotlinking */
-import type { WorkKind } from "@/lib/types";
-import { WORK_KIND_LABEL } from "@/lib/types";
+import { TAG_KIND_LABEL, type TagKind } from "@/lib/types";
 
 /**
  * Cover art from Bangumi / Open Library / video CDNs. `referrerPolicy` is set
@@ -10,10 +9,13 @@ import { WORK_KIND_LABEL } from "@/lib/types";
 export function Cover({
   src,
   kind,
+  label,
   className = "h-24 w-16",
 }: {
   src: string | null | undefined;
-  kind: WorkKind;
+  kind: TagKind | null;
+  /** shown on the placeholder instead of the kind, e.g. the first letter of a tag's name */
+  label?: string;
   className?: string;
 }) {
   return src ? (
@@ -29,7 +31,7 @@ export function Cover({
       aria-hidden
       className={`${className} flex shrink-0 items-center justify-center rounded-md border border-line bg-sunken text-xs text-muted`}
     >
-      {WORK_KIND_LABEL[kind]}
+      {label ?? (kind ? TAG_KIND_LABEL[kind] : "#")}
     </div>
   );
 }

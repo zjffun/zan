@@ -1,18 +1,18 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
-import { SLUG_PATTERN } from "@/lib/public";
+import { isUuid } from "@/lib/dal";
 
 export const metadata: Metadata = { title: "举报", robots: { index: false, follow: false } };
 
 async function ReportBody({ searchParams }: Pick<PageProps<"/report">, "searchParams">) {
   const params = await searchParams;
-  const raw = Array.isArray(params.page) ? params.page[0] : params.page;
-  const slug = raw && SLUG_PATTERN.test(raw) ? raw : null;
+  const raw = Array.isArray(params.post) ? params.post[0] : params.post;
+  const post = raw && isUuid(raw) ? raw : null;
   const email = process.env.REPORT_EMAIL;
-  const subject = `举报 zan 页面${slug ? ` /p/${slug}` : ""}`;
+  const subject = `举报 zan 内容${post ? ` /p/${post}` : ""}`;
   const body = [
-    slug ? `页面：/p/${slug}` : "页面：",
+    post ? `页面：/p/${post}` : "页面：",
     "你的身份（权利人 / 授权代表 / 其他）：",
     "涉嫌侵权或违规的内容：",
     "原作品或权利证明的链接：",
@@ -21,9 +21,9 @@ async function ReportBody({ searchParams }: Pick<PageProps<"/report">, "searchPa
   return (
     <>
       <p className="mt-2 text-sm text-muted">
-        {slug ? (
+        {post ? (
           <>
-            被举报页面：<code className="rounded bg-sunken px-1">/p/{slug}</code>
+            被举报内容：<code className="rounded bg-sunken px-1">/p/{post}</code>
           </>
         ) : (
           "请写明被举报页面的地址。"
@@ -51,7 +51,7 @@ async function ReportBody({ searchParams }: Pick<PageProps<"/report">, "searchPa
 export default function ReportPage(props: PageProps<"/report">) {
   return (
     <main className="mx-auto max-w-2xl px-4 py-10">
-      <h1 className="text-2xl font-bold tracking-tight">举报页面</h1>
+      <h1 className="text-2xl font-bold tracking-tight">举报内容</h1>
       <Suspense fallback={null}>
         <ReportBody searchParams={props.searchParams} />
       </Suspense>

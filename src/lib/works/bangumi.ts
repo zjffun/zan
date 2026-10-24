@@ -2,7 +2,7 @@ import "server-only";
 import { isAllowedImageUrl } from "../links/hosts";
 import { fetchJson } from "../server/http";
 import { TtlCache } from "../server/cache";
-import type { WorkKind } from "../types";
+import type { TagKind } from "../types";
 import type { WorkCandidate, WorkRecord } from "./types";
 
 const API = "https://api.bgm.tv";
@@ -13,7 +13,7 @@ function headers(): Record<string, string> {
 }
 
 /** Bangumi subject type -> our kinds. 1 book, 2 anime, 3 music, 4 game, 6 live action. */
-export function bangumiKind(type: unknown, platform: unknown): WorkKind {
+export function bangumiKind(type: unknown, platform: unknown): TagKind {
   switch (type) {
     case 1:
       return platform === "漫画" ? "manga" : "book";

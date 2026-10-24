@@ -6,7 +6,7 @@
 #   scripts/dev/local-stack.sh                # prints the env vars to put in .env.local
 #
 # Also creates a fixed dev account (see scripts/dev/mock-supabase.mjs) and, on a
-# fresh database, a few published sample jars (scripts/dev/seed.sql; ZAN_DEV_SEED=0 skips them).
+# fresh database, sample tags, posts and comments (scripts/dev/seed.sql; ZAN_DEV_SEED=0 skips them).
 #
 # DEV ONLY: see scripts/dev/mock-supabase.mjs.
 set -euo pipefail

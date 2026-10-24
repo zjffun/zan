@@ -2,9 +2,8 @@ import { Suspense } from "react";
 import { HeaderView, SiteHeader } from "@/components/SiteHeader";
 
 /**
- * Everything except the public snapshot pages. The header looks at the session
- * cookie, so it streams in behind Suspense; public pages (/p/…) live outside
- * this group so that they stay fully static and cacheable.
+ * The header looks at the session cookie, so it streams in behind Suspense;
+ * the rest of the page shell stays static.
  */
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (

@@ -6,7 +6,7 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // Everything except static assets and the public snapshot pages (which are
-  // cacheable and never need a session).
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|p/|robots.txt|sitemap.xml|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)"],
+  // Everything except static assets: even public pages need the session refresh, because the header and the
+  // like buttons know who is looking.
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)"],
 };

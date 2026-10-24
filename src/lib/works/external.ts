@@ -1,7 +1,10 @@
-import type { Work } from "../types";
+/** The part of a tag these links need. */
+interface WithExternal {
+  external: Record<string, string>;
+}
 
 /** Links to the work on the databases it came from. */
-export function workLinks(work: Pick<Work, "external">): { label: string; url: string }[] {
+export function workLinks(work: WithExternal): { label: string; url: string }[] {
   const links: { label: string; url: string }[] = [];
   const { bangumi, openlibrary, isbn } = work.external ?? {};
   if (bangumi && /^\d+$/.test(bangumi)) links.push({ label: "Bangumi", url: `https://bgm.tv/subject/${bangumi}` });

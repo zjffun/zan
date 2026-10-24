@@ -62,7 +62,7 @@ export function NoteEditor({ ref, ...props }: NoteEditorProps) {
       AnchorChip.configure({ onTimeShortcut: () => latest.current.onTimeShortcut?.() }),
     ],
     editorProps: {
-      attributes: { class: "note-body ProseMirror px-3 py-2", "aria-label": "笔记内容", role: "textbox", "aria-multiline": "true" },
+      attributes: { class: "note-body ProseMirror px-3 py-2", "aria-label": "内容", role: "textbox", "aria-multiline": "true" },
       handleDOMEvents: {
         click: (_view, event) => {
           const chip = chipFromElement(event.target);

@@ -1,41 +1,33 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
-import { anchorSchema, anchorLabel } from "@/lib/anchor";
-import { requireUser } from "@/lib/dal";
-import { createClient } from "@/lib/supabase/server";
+import { Cover } from "@/components/Cover";
+import { Pager } from "@/components/Pager";
+import { PostList } from "@/components/PostList";
+import { parsePage } from "@/lib/feed";
+import { searchPosts, type PostPage } from "@/lib/posts";
+import { listTags } from "@/lib/tags";
+import { TAG_KIND_LABEL, type TagListItem } from "@/lib/types";
 
-export const metadata: Metadata = { title: "搜索笔记", robots: { index: false, follow: false } };
-
-interface Hit {
-  note_id: string;
-  jar_id: string;
-  anchor: unknown;
-  plain_text: string;
-  work_title: string;
-}
-
-/** A short excerpt around the first match. */
-function excerpt(text: string, query: string): string {
-  const flat = text.replace(/\s+/g, " ");
-  const at = flat.toLowerCase().indexOf(query.toLowerCase());
-  const start = Math.max(0, (at < 0 ? 0 : at) - 30);
-  const slice = Array.from(flat.slice(start)).slice(0, 120).join("");
-  return `${start > 0 ? "…" : ""}${slice}${flat.length - start > slice.length ? "…" : ""}`;
-}
+export const metadata: Metadata = { title: "搜索", robots: { index: false, follow: false } };
 
 async function Results({ searchParams }: Pick<PageProps<"/search">, "searchParams">) {
   const params = await searchParams;
-  const query = (Array.isArray(params.q) ? params.q[0] : params.q)?.trim().slice(0, 100) ?? "";
-  await requireUser(`/search${query ? `?q=${encodeURIComponent(query)}` : ""}`);
+  const q = (Array.isArray(params.q) ? params.q[0] : params.q)?.trim().slice(0, 100) ?? "";
+  const page = parsePage(params.page);
 
-  let hits: Hit[] = [];
+  let posts: PostPage | null = null;
+  let tags: TagListItem[] = [];
   let failed = false;
-  if (query) {
-    const supabase = await createClient();
-    const { data, error } = await supabase.rpc("search_notes", { q: query, lim: 50 });
-    if (error) failed = true;
-    else hits = (data ?? []) as Hit[];
+  if (q) {
+    try {
+      [posts, tags] = await Promise.all([
+        searchPosts(q, page),
+        page === 1 ? listTags({ q, sort: "hot" }, 6).then((r) => r.items) : Promise.resolve([]),
+      ]);
+    } catch {
+      failed = true;
+    }
   }
 
   return (
@@ -45,44 +37,63 @@ async function Results({ searchParams }: Pick<PageProps<"/search">, "searchParam
           className="input"
           type="search"
           name="q"
-          defaultValue={query}
-          placeholder="搜索你所有的笔记和作品名"
+          defaultValue={q}
+          placeholder="搜索内容和标签"
           aria-label="搜索关键词"
           autoFocus
         />
         <button className="btn btn-primary shrink-0">搜索</button>
       </form>
 
-      {failed ? <p role="alert" className="mt-4 text-sm text-danger">搜索失败，请稍后再试。</p> : null}
-      {query && !failed ? (
-        <p className="mt-4 text-sm text-muted">
-          “{query}”：{hits.length} 条结果
+      {failed ? (
+        <p role="alert" className="mt-4 text-sm text-danger">
+          搜索失败，请稍后再试。
         </p>
       ) : null}
-      <ul className="mt-3 space-y-2">
-        {hits.map((hit) => {
-          const anchor = anchorSchema.safeParse(hit.anchor);
-          return (
-            <li key={hit.note_id}>
-              <Link href={`/jars/${hit.jar_id}`} className="card block p-3.5 transition-colors hover:bg-sunken">
-                <div className="flex items-center gap-2 text-sm">
-                  <span className="font-medium">{hit.work_title}</span>
-                  {anchor.success ? <span className="anchor-chip !m-0 !cursor-pointer">{anchorLabel(anchor.data)}</span> : null}
-                </div>
-                <p className="mt-1 text-sm text-muted">{excerpt(hit.plain_text, query)}</p>
-              </Link>
-            </li>
-          );
-        })}
-      </ul>
+
+      {tags.length > 0 ? (
+        <section className="mt-5" aria-label="标签">
+          <h2 className="text-sm font-medium text-muted">标签</h2>
+          <ul className="mt-2 grid gap-2 sm:grid-cols-2">
+            {tags.map((tag) => (
+              <li key={tag.id}>
+                <Link href={`/t/${tag.slug}`} className="card flex items-center gap-3 p-2.5 transition-colors hover:bg-sunken">
+                  <Cover src={tag.cover_url} kind={tag.kind} label={tag.kind ? undefined : Array.from(tag.name)[0]} className="h-12 w-9" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-medium">#{tag.name}</span>
+                    <span className="block text-xs text-muted">
+                      {tag.kind ? `${TAG_KIND_LABEL[tag.kind]} · ` : ""}
+                      {tag.post_count} 条内容
+                    </span>
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
+      {q && posts && !failed ? (
+        posts.items.length === 0 ? (
+          <p className="mt-6 text-center text-sm text-muted">
+            {page > 1 ? "这一页没有内容了。" : tags.length > 0 ? "没有匹配的内容。" : `没有找到“${q}”。`}
+          </p>
+        ) : (
+          <section className="mt-6" aria-label="内容">
+            {tags.length > 0 ? <h2 className="mb-2 text-sm font-medium text-muted">内容</h2> : null}
+            <PostList items={posts.items} />
+            <Pager path="/search" page={page} hasMore={posts.hasMore} params={{ q }} />
+          </section>
+        )
+      ) : null}
     </>
   );
 }
 
 export default function SearchPage(props: PageProps<"/search">) {
   return (
-    <main className="mx-auto max-w-3xl px-4 py-8">
-      <h1 className="text-2xl font-bold tracking-tight">搜索笔记</h1>
+    <main className="mx-auto max-w-6xl px-4 py-8">
+      <h1 className="text-2xl font-bold tracking-tight">搜索</h1>
       <Suspense fallback={<div className="mt-5 h-10 animate-pulse rounded-lg bg-sunken" />}>
         <Results searchParams={props.searchParams} />
       </Suspense>

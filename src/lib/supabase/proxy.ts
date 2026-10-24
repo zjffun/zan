@@ -2,7 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 /** Paths that need a signed-in user. */
-const PROTECTED = [/^\/jars(\/|$)/, /^\/search(\/|$)/];
+const PROTECTED = [/^\/new(\/|$)/, /^\/settings(\/|$)/, /^\/favorites(\/|$)/, /^\/p\/[^/]+\/edit(\/|$)/];
 
 /**
  * Runs before every matched request: refreshes the Supabase session cookie

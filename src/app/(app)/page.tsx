@@ -1,23 +1,31 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Suspense } from "react";
-import { FeedCard } from "@/components/FeedCard";
-import { feedHref, parseFeedQuery } from "@/lib/feed";
-import { listPublicFeed, type FeedPage } from "@/lib/public";
-import { WORK_KINDS, WORK_KIND_LABEL } from "@/lib/types";
+import { PostList } from "@/components/PostList";
+import { Pager } from "@/components/Pager";
+import { getCurrentUser } from "@/lib/dal";
+import { buildHref, parseFeedTab, parsePage } from "@/lib/feed";
+import { getFollowingFeed, getPublicFeed, type PostPage } from "@/lib/posts";
+import { getFollowedTagIds, getHotTags } from "@/lib/tags";
+import { TAG_KIND_LABEL } from "@/lib/types";
 
 /** The way in to writing: always on top, for visitors too (they are asked to sign in first). */
 function ComposeBar() {
   return (
-    <Link
-      href="/jars/new"
-      className="card flex items-center gap-3 px-4 py-3 text-muted transition-colors hover:bg-sunken"
-    >
-      <span aria-hidden className="flex size-8 shrink-0 items-center justify-center rounded-full bg-accent-soft text-lg text-accent">
-        +
-      </span>
-      <span className="min-w-0 flex-1 truncate text-sm">攒一部作品：动画、书、游戏、一个视频系列……</span>
-      <span className="btn btn-primary btn-sm shrink-0">新建</span>
-    </Link>
+    <div className="card flex items-center gap-3 px-4 py-3">
+      <Link href="/new/post" className="flex min-w-0 flex-1 items-center gap-3 text-muted hover:text-ink">
+        <span aria-hidden className="flex size-8 shrink-0 items-center justify-center rounded-full bg-accent-soft text-lg text-accent">
+          +
+        </span>
+        <span className="truncate text-sm">写点什么，或贴一个视频链接……</span>
+      </Link>
+      <Link href="/new/tag" className="btn btn-sm shrink-0">
+        新建标签
+      </Link>
+      <Link href="/new/post" className="btn btn-primary btn-sm shrink-0">
+        发布
+      </Link>
+    </div>
   );
 }
 
@@ -25,102 +33,113 @@ function FeedSkeleton() {
   return (
     <div aria-hidden>
       <div className="mt-5 h-8 w-64 animate-pulse rounded-lg bg-sunken" />
-      <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        {Array.from({ length: 6 }, (_, i) => (
-          <div key={i} className="h-36 animate-pulse rounded-xl bg-sunken" />
+      <div className="mt-4 columns-1 gap-3 sm:columns-2 lg:columns-3">
+        {[40, 56, 32, 48, 36, 52].map((height, i) => (
+          <div key={i} className="mb-3 animate-pulse break-inside-avoid rounded-xl bg-sunken" style={{ height: `${height * 4}px` }} />
         ))}
       </div>
     </div>
   );
 }
 
-async function Feed({ searchParams }: Pick<PageProps<"/">, "searchParams">) {
-  const query = parseFeedQuery(await searchParams);
+function Empty({ title, hint, href, action }: { title: string; hint: string; href: string; action: string }) {
+  return (
+    <div className="card mt-4 px-6 py-12 text-center">
+      <p className="font-medium">{title}</p>
+      <p className="mt-1 text-sm text-muted">{hint}</p>
+      <Link href={href} className="btn btn-primary mt-5">
+        {action}
+      </Link>
+    </div>
+  );
+}
 
-  let feed: FeedPage | null = null;
+async function Feed({ searchParams }: Pick<PageProps<"/">, "searchParams">) {
+  const params = await searchParams;
+  const tab = parseFeedTab(params.tab);
+  const page = parsePage(params.page);
+  const user = await getCurrentUser();
+  if (tab === "following" && !user) redirect(`/login?next=${encodeURIComponent("/?tab=following")}`);
+
+  let feed: PostPage | null = null;
+  let followsNothing = false;
   try {
-    feed = await listPublicFeed(query);
+    if (tab === "following" && user) {
+      const ids = await getFollowedTagIds(user.id);
+      followsNothing = ids.length === 0;
+      feed = await getFollowingFeed(ids, page);
+    } else {
+      feed = await getPublicFeed({ tagId: null, page });
+    }
   } catch {
     // database unreachable: say so instead of failing the whole page
   }
+  const hotTags = await getHotTags().catch(() => []);
 
-  const tabs = [{ kind: null, label: "全部" }, ...WORK_KINDS.map((kind) => ({ kind, label: WORK_KIND_LABEL[kind] }))];
+  const tabs = [
+    { id: "latest", label: "最新", href: "/" },
+    { id: "following", label: "关注", href: buildHref("/", { tab: "following" }) },
+  ] as const;
 
   return (
     <>
-      <nav aria-label="分类" className="-mx-4 mt-5 flex gap-1.5 overflow-x-auto px-4 pb-1">
-        {tabs.map((tab) => {
-          const active = tab.kind === query.kind;
-          return (
-            <Link
-              key={tab.label}
-              href={feedHref({ kind: tab.kind, page: 1 })}
-              aria-current={active ? "page" : undefined}
-              className={`btn btn-sm shrink-0 ${active ? "!border-accent !bg-accent-soft !text-accent" : ""}`}
-            >
-              {tab.label}
-            </Link>
-          );
-        })}
-      </nav>
+      <div className="mt-5 flex items-center gap-1 border-b border-line">
+        {tabs.map((item) => (
+          <Link
+            key={item.id}
+            href={item.href}
+            aria-current={item.id === tab ? "page" : undefined}
+            className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium ${item.id === tab ? "border-accent text-accent" : "border-transparent text-muted hover:text-ink"}`}
+          >
+            {item.label}
+          </Link>
+        ))}
+      </div>
 
-      {!feed ? (
-        <p role="alert" className="card mt-4 px-6 py-12 text-center text-sm text-muted">
-          内容暂时无法加载，请稍后刷新重试。
-        </p>
-      ) : feed.items.length === 0 ? (
-        <div className="card mt-4 px-6 py-12 text-center">
-          <p className="font-medium">{query.page > 1 ? "这一页没有内容了" : "这里还没有内容"}</p>
-          <p className="mt-1 text-sm text-muted">
-            {query.page > 1 ? "回到第一页看看。" : "发布你攒的笔记，它就会出现在这里。"}
-          </p>
-          {query.page > 1 ? (
-            <Link href={feedHref({ kind: query.kind, page: 1 })} className="btn mt-5">
-              回到第一页
+      {tab === "latest" && hotTags.length > 0 ? (
+        <div className="-mx-4 mt-3 flex items-center gap-1.5 overflow-x-auto px-4 pb-1">
+          <span className="shrink-0 text-xs text-muted">热门标签</span>
+          {hotTags.map((tag) => (
+            <Link key={tag.id} href={`/t/${tag.slug}`} className="chip shrink-0 hover:!bg-accent-soft hover:!text-accent">
+              #{tag.name}
+              {tag.kind ? <span className="opacity-60">{TAG_KIND_LABEL[tag.kind]}</span> : null}
             </Link>
-          ) : (
-            <Link href="/jars/new" className="btn btn-primary mt-5">
-              攒一部作品
-            </Link>
-          )}
+          ))}
+          <Link href="/tags" className="shrink-0 text-xs text-accent underline-offset-2 hover:underline">
+            全部标签 →
+          </Link>
         </div>
-      ) : (
-        <>
-          <ul className="mt-4 grid gap-3 sm:grid-cols-2">
-            {feed.items.map((item) => (
-              <li key={item.slug}>
-                <FeedCard item={item} />
-              </li>
-            ))}
-          </ul>
-          {query.page > 1 || feed.hasMore ? (
-            <nav aria-label="翻页" className="mt-6 flex items-center justify-between">
-              {query.page > 1 ? (
-                <Link href={feedHref({ ...query, page: query.page - 1 })} className="btn">
-                  上一页
-                </Link>
-              ) : (
-                <span />
-              )}
-              <span className="text-sm text-muted">第 {query.page} 页</span>
-              {feed.hasMore ? (
-                <Link href={feedHref({ ...query, page: query.page + 1 })} className="btn">
-                  下一页
-                </Link>
-              ) : (
-                <span />
-              )}
-            </nav>
-          ) : null}
-        </>
-      )}
+      ) : null}
+
+      <div className="mt-4">
+        {!feed ? (
+          <p role="alert" className="card px-6 py-12 text-center text-sm text-muted">
+            内容暂时无法加载，请稍后刷新重试。
+          </p>
+        ) : feed.items.length === 0 ? (
+          tab === "following" && followsNothing ? (
+            <Empty title="还没有关注的标签" hint="关注感兴趣的标签，它们下面的新内容会出现在这里。" href="/tags" action="去看看标签" />
+          ) : tab === "following" ? (
+            <Empty title="你关注的标签下还没有内容" hint="发布一条，让它热闹起来。" href="/new/post" action="发布内容" />
+          ) : page > 1 ? (
+            <Empty title="这一页没有内容了" hint="回到第一页看看。" href={buildHref("/", { tab })} action="回到第一页" />
+          ) : (
+            <Empty title="这里还没有内容" hint="发布第一条，它就会出现在这里。" href="/new/post" action="发布内容" />
+          )
+        ) : (
+          <>
+            <PostList items={feed.items} />
+            <Pager path="/" page={page} hasMore={feed.hasMore} params={{ tab }} />
+          </>
+        )}
+      </div>
     </>
   );
 }
 
 export default function Home(props: PageProps<"/">) {
   return (
-    <main className="mx-auto max-w-5xl px-4 py-6 sm:py-8">
+    <main className="mx-auto max-w-6xl px-4 py-6 sm:py-8">
       <h1 className="sr-only">发现</h1>
       <ComposeBar />
       <Suspense fallback={<FeedSkeleton />}>

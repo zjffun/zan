@@ -1,4 +1,5 @@
 import { timingSafeEqual } from "node:crypto";
+import { revalidateTag } from "next/cache";
 import { NextResponse, type NextRequest } from "next/server";
 import { checkVideoHealth, nextHealthState } from "@/lib/links/check";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -16,20 +17,21 @@ function authorized(request: NextRequest): boolean {
 }
 
 /**
- * Dead-source detector, run by a scheduler (vercel.json). It re-checks the
- * least recently checked YouTube/Bilibili sources and flips `status` between
- * ok and dead (after two consecutive dead answers). Saved metadata keeps the notes
- * readable; the player is swapped for a "video unavailable" placeholder.
+ * Dead-video detector, run by a scheduler (vercel.json). It re-checks the
+ * least recently checked YouTube/Bilibili videos that posts point at and flips
+ * `source_status` between ok and dead (after two consecutive dead answers). The
+ * saved metadata keeps the post readable; the player is swapped for a "video
+ * unavailable" placeholder.
  */
 export async function GET(request: NextRequest) {
   if (!authorized(request)) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
   const admin = createAdminClient();
   const { data, error } = await admin
-    .from("sources")
-    .select("id, provider, ref, status, fail_count")
-    .in("provider", ["youtube", "bilibili"])
-    .order("checked_at", { ascending: true, nullsFirst: true })
+    .from("posts")
+    .select("id, source, source_status, source_fail_count")
+    .in("source->>provider", ["youtube", "bilibili"])
+    .order("source_checked_at", { ascending: true, nullsFirst: true })
     .limit(BATCH);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
@@ -38,16 +40,22 @@ export async function GET(request: NextRequest) {
 
   async function worker() {
     for (let row = queue.shift(); row; row = queue.shift()) {
-      const health = await checkVideoHealth(row.provider, row.ref as Record<string, unknown>);
+      const source = row.source as { provider?: string; ref?: Record<string, unknown> } | null;
+      const health = await checkVideoHealth(source?.provider ?? "", source?.ref ?? {});
       summary.checked += 1;
       summary[health] += 1;
-      const next = nextHealthState({ status: row.status, fail_count: row.fail_count }, health);
+      const next = nextHealthState({ status: row.source_status, fail_count: row.source_fail_count }, health);
       if (!next) continue; // no trustworthy answer: leave it for the next run
-      if (next.status !== row.status) summary.changed += 1;
       await admin
-        .from("sources")
-        .update({ status: next.status, fail_count: next.fail_count, checked_at: new Date().toISOString() })
+        .from("posts")
+        .update({ source_status: next.status, source_fail_count: next.fail_count, source_checked_at: new Date().toISOString() })
         .eq("id", row.id);
+      if (next.status !== row.source_status) {
+        summary.changed += 1;
+        // the post page and the cards show a "video unavailable" notice now (or no longer)
+        revalidateTag(`post:${row.id}`, { expire: 0 });
+        revalidateTag("feed", { expire: 0 });
+      }
     }
   }
   await Promise.all(Array.from({ length: CONCURRENCY }, worker));

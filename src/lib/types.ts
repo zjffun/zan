@@ -1,10 +1,10 @@
 import type { Anchor } from "./anchor";
-import type { DocNode } from "./doc/schema";
 
-export const WORK_KINDS = ["anime", "book", "manga", "game", "film", "other"] as const;
-export type WorkKind = (typeof WORK_KINDS)[number];
+/** What sort of thing a tag is about. Plain topics have no kind. */
+export const TAG_KINDS = ["anime", "book", "manga", "game", "film", "other"] as const;
+export type TagKind = (typeof TAG_KINDS)[number];
 
-export const WORK_KIND_LABEL: Record<WorkKind, string> = {
+export const TAG_KIND_LABEL: Record<TagKind, string> = {
   anime: "动画",
   book: "书",
   manga: "漫画",
@@ -16,29 +16,9 @@ export const WORK_KIND_LABEL: Record<WorkKind, string> = {
 export const SOURCE_PROVIDERS = ["youtube", "bilibili", "episode", "book", "link"] as const;
 export type SourceProvider = (typeof SOURCE_PROVIDERS)[number];
 
-export type Visibility = "private" | "unlisted" | "public";
+export type Visibility = "public" | "private";
 
-export interface Work {
-  id: string;
-  kind: WorkKind;
-  title: string;
-  title_original: string | null;
-  cover_url: string | null;
-  /** {"bangumi": "12", "isbn": "978...", "openlibrary": "OL45883W"} */
-  external: Record<string, string>;
-}
-
-export interface Jar {
-  id: string;
-  owner: string;
-  work_id: string;
-  slug: string;
-  visibility: Visibility;
-  created_at: string;
-  updated_at: string;
-}
-
-/** What we remember about a source so notes stay readable if the video dies. */
+/** What we remember about a source so a post stays readable if the video dies. */
 export interface SourceMeta {
   title?: string;
   author?: string;
@@ -49,30 +29,82 @@ export interface SourceMeta {
   part?: string;
 }
 
-export interface Source {
-  id: string;
-  jar_id: string;
+/** What a post points at: a video or a link. Stored as `posts.source`. */
+export interface PostSource {
   provider: SourceProvider;
-  /** {"videoId"} | {"bvid","p"} | {"ep","bgm_ep","url"} | {"isbn","url"} | {"url"} */
+  /** {"videoId"} | {"bvid","p"} | {"url"} | … */
   ref: Record<string, unknown>;
   meta: SourceMeta | null;
-  status: "ok" | "dead";
-  fail_count: number;
-  checked_at: string | null;
-  created_at: string;
-}
-
-export interface Note {
-  id: string;
-  jar_id: string;
-  source_id: string | null;
-  anchor: Anchor | null;
-  body: DocNode;
-  plain_text: string;
-  hide_on_publish: boolean;
-  created_at: string;
-  updated_at: string;
 }
 
 /** The part of a source the players and link builders need. */
-export type SourceLike = Pick<Source, "provider" | "ref"> & { meta?: SourceMeta | null };
+export type SourceLike = Pick<PostSource, "provider" | "ref"> & { meta?: SourceMeta | null };
+
+export interface TagRef {
+  id: string;
+  slug: string;
+  name: string;
+  kind: TagKind | null;
+}
+
+/** A tag page's header: the tag plus its counts. */
+export interface TagInfo extends TagRef {
+  description: string;
+  cover_url: string | null;
+  external: Record<string, string>;
+  created_by: string | null;
+  post_count: number;
+  follower_count: number;
+}
+
+/** A row of the tag directory. */
+export interface TagListItem extends TagRef {
+  description: string;
+  cover_url: string | null;
+  post_count: number;
+  follower_count: number;
+}
+
+export interface AuthorRef {
+  id: string;
+  nickname: string;
+}
+
+/** What a feed card needs: no body, just a teaser. */
+export interface PostCardData {
+  id: string;
+  author: AuthorRef;
+  excerpt: string;
+  source: PostSource | null;
+  source_status: "ok" | "dead";
+  anchor: Anchor | null;
+  visibility: Visibility;
+  like_count: number;
+  comment_count: number;
+  created_at: string;
+  tags: TagRef[];
+}
+
+/** Everything the post page shows. */
+export interface PostDetailData extends Omit<PostCardData, "excerpt"> {
+  /** TipTap JSON; always passed through sanitizeDoc before use */
+  body: unknown;
+  plain_text: string;
+  updated_at: string;
+}
+
+export interface CommentData {
+  id: string;
+  post_id: string;
+  parent_id: string | null;
+  author: AuthorRef;
+  body: string;
+  created_at: string;
+}
+
+export interface Profile {
+  id: string;
+  nickname: string;
+  bio: string;
+  created_at: string;
+}

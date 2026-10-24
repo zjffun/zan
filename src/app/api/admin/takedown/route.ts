@@ -2,7 +2,6 @@ import { timingSafeEqual } from "node:crypto";
 import { revalidateTag } from "next/cache";
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
-import { SLUG_PATTERN } from "@/lib/public";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 function authorized(request: NextRequest): boolean {
@@ -14,26 +13,31 @@ function authorized(request: NextRequest): boolean {
 }
 
 /**
- * Operator takedown: removes a published page (its snapshot) immediately.
- * The owner's private jar is untouched and goes back to "private".
+ * Operator takedown: hides a post from everybody, its author included,
+ * immediately. Nothing is deleted, so a mistake can be undone with
+ * `{"post":"…","restore":true}`.
  *
  *   curl -X POST $SITE/api/admin/takedown -H "Authorization: Bearer $ADMIN_SECRET" \
- *        -H 'content-type: application/json' -d '{"slug":"…"}'
+ *        -H 'content-type: application/json' -d '{"post":"<post id>"}'
  */
 export async function POST(request: NextRequest) {
   if (!authorized(request)) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
-  const body = z.object({ slug: z.string().regex(SLUG_PATTERN) }).safeParse(await request.json().catch(() => null));
-  if (!body.success) return NextResponse.json({ error: "slug required" }, { status: 400 });
+  const body = z
+    .object({ post: z.uuid(), restore: z.boolean().optional() })
+    .safeParse(await request.json().catch(() => null));
+  if (!body.success) return NextResponse.json({ error: "post (a post id) required" }, { status: 400 });
 
   const admin = createAdminClient();
-  const removed = await admin.from("publications").delete().eq("slug", body.data.slug).select("jar_id");
-  if (removed.error) return NextResponse.json({ error: removed.error.message }, { status: 500 });
-  const jarIds = (removed.data ?? []).map((r) => r.jar_id);
-  if (jarIds.length > 0) await admin.from("jars").update({ visibility: "private" }).in("id", jarIds);
+  const updated = await admin
+    .from("posts")
+    .update({ removed_at: body.data.restore ? null : new Date().toISOString() })
+    .eq("id", body.data.post)
+    .select("id");
+  if (updated.error) return NextResponse.json({ error: updated.error.message }, { status: 500 });
 
-  // expire = 0: never serve the taken-down page from the cache again
-  revalidateTag(`pub:${body.data.slug}`, { expire: 0 });
-  revalidateTag("pub:index", { expire: 0 });
-  return NextResponse.json({ removed: jarIds.length });
+  // expire = 0: never serve the taken-down post from the cache again
+  revalidateTag(`post:${body.data.post}`, { expire: 0 });
+  revalidateTag("feed", { expire: 0 });
+  return NextResponse.json({ updated: updated.data?.length ?? 0, restored: Boolean(body.data.restore) });
 }

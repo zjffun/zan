@@ -1,56 +1,92 @@
 import Link from "next/link";
 import { signOut } from "@/app/actions/auth";
-import { TAGLINE } from "@/lib/brand";
-import { getCurrentUser, type CurrentUser } from "@/lib/dal";
+import { getCurrentProfile } from "@/lib/dal";
+import { Avatar } from "./Avatar";
+import { PlusIcon, SearchIcon } from "./icons";
+import { Menu, menuItemClass } from "./Menu";
 
-/** Always offered, also to visitors: /jars/new sends them through the login page and back. */
-function NewJarLink() {
-  return (
-    <Link href="/jars/new" className="btn btn-primary btn-sm">
-      + 新建
-    </Link>
-  );
+export interface HeaderUser {
+  id: string;
+  nickname: string;
 }
 
-/** Pure presentation: no cookie access, so it can be part of the static shell. `"static"` is for cached public pages. */
-export function HeaderView({ user }: { user: CurrentUser | null | "loading" | "static" }) {
+/** Pure presentation: no cookie access, so it can be part of the static shell. */
+export function HeaderView({ user }: { user: HeaderUser | null | "loading" }) {
   return (
     <header className="border-b border-line bg-paper/90 backdrop-blur">
-      <div className="mx-auto flex h-14 max-w-6xl items-center gap-4 px-4">
-        <Link href="/" className="flex items-baseline gap-2 font-semibold tracking-tight">
-          <span className="text-lg">zan</span>
-          <span className="hidden text-xs font-normal text-muted sm:inline">{TAGLINE}</span>
+      <div className="mx-auto flex h-14 max-w-6xl items-center gap-3 px-4">
+        <Link href="/" className="text-lg font-semibold tracking-tight">
+          zan
         </Link>
-        <nav className="ml-auto flex items-center gap-2 text-sm">
-          {user === "loading" ? null : user === "static" ? (
-            // public pages are cached and identical for everybody: no session lookup here
+
+        <form action="/search" role="search" className="relative ml-1 hidden max-w-xs flex-1 sm:block">
+          <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted" />
+          <input
+            className="input !min-h-8 !rounded-full !py-1 !pl-8 text-sm"
+            type="search"
+            name="q"
+            placeholder="搜索内容和标签"
+            aria-label="搜索"
+          />
+        </form>
+
+        <nav className="ml-auto flex items-center gap-1.5 text-sm">
+          <Link href="/search" className="btn btn-quiet btn-sm sm:hidden" aria-label="搜索">
+            <SearchIcon className="size-4" />
+          </Link>
+          <Link href="/tags" className="btn btn-quiet btn-sm">
+            标签
+          </Link>
+
+          {user === "loading" ? null : (
             <>
-              <Link href="/jars" className="btn btn-quiet btn-sm">
-                我攒的
-              </Link>
-              <NewJarLink />
-            </>
-          ) : user ? (
-            <>
-              <Link href="/search" className="btn btn-quiet btn-sm">
-                搜索笔记
-              </Link>
-              <Link href="/jars" className="btn btn-quiet btn-sm">
-                我攒的
-              </Link>
-              <NewJarLink />
-              <form action={signOut}>
-                <button className="btn btn-quiet btn-sm" type="submit" title={user.email ?? undefined}>
-                  退出
-                </button>
-              </form>
-            </>
-          ) : (
-            <>
-              <Link href="/login" className="btn btn-quiet btn-sm">
-                登录
-              </Link>
-              <NewJarLink />
+              <Menu
+                buttonClassName="btn btn-primary btn-sm"
+                label={
+                  <>
+                    <PlusIcon className="size-4" />
+                    新建
+                  </>
+                }
+              >
+                <Link href="/new/post" className={menuItemClass} role="menuitem">
+                  发布内容
+                </Link>
+                <Link href="/new/tag" className={menuItemClass} role="menuitem">
+                  新建标签
+                </Link>
+              </Menu>
+
+              {user ? (
+                <Menu
+                  buttonClassName="btn btn-quiet btn-sm !px-1.5"
+                  label={
+                    <>
+                      <Avatar id={user.id} name={user.nickname} size="sm" />
+                      <span className="hidden max-w-24 truncate sm:inline">{user.nickname}</span>
+                    </>
+                  }
+                >
+                  <Link href={`/u/${user.id}`} className={menuItemClass} role="menuitem">
+                    我的主页
+                  </Link>
+                  <Link href="/favorites" className={menuItemClass} role="menuitem">
+                    我的收藏
+                  </Link>
+                  <Link href="/settings" className={menuItemClass} role="menuitem">
+                    设置
+                  </Link>
+                  <form action={signOut}>
+                    <button type="submit" className={menuItemClass} role="menuitem">
+                      退出登录
+                    </button>
+                  </form>
+                </Menu>
+              ) : (
+                <Link href="/login" className="btn btn-sm">
+                  登录
+                </Link>
+              )}
             </>
           )}
         </nav>
@@ -61,5 +97,6 @@ export function HeaderView({ user }: { user: CurrentUser | null | "loading" | "s
 
 /** Reads the session cookie: render inside <Suspense>. */
 export async function SiteHeader() {
-  return <HeaderView user={await getCurrentUser()} />;
+  const profile = await getCurrentProfile();
+  return <HeaderView user={profile ? { id: profile.id, nickname: profile.nickname } : null} />;
 }

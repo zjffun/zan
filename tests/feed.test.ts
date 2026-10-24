@@ -1,76 +1,66 @@
 import { describe, expect, it } from "vitest";
-import { FEED_MAX_PAGE, feedExcerpt, feedHref, parseFeedQuery } from "@/lib/feed";
+import { buildHref, excerptOf, FEED_MAX_PAGE, parseFeedTab, parsePage } from "@/lib/feed";
 
-const paragraph = (...content: object[]) => ({ type: "doc", content: [{ type: "paragraph", content }] });
-const text = (value: string) => ({ type: "text", text: value });
-
-describe("parseFeedQuery", () => {
-  it("defaults to every kind, first page", () => {
-    expect(parseFeedQuery({})).toEqual({ kind: null, page: 1 });
+describe("parsePage", () => {
+  it("defaults to the first page and accepts real page numbers", () => {
+    expect(parsePage(undefined)).toBe(1);
+    expect(parsePage("3")).toBe(3);
   });
 
-  it("accepts a known kind and a page number", () => {
-    expect(parseFeedQuery({ kind: "book", page: "3" })).toEqual({ kind: "book", page: 3 });
-  });
-
-  it("falls back for anything it does not know", () => {
-    expect(parseFeedQuery({ kind: "music" }).kind).toBeNull();
-    expect(parseFeedQuery({ kind: "__proto__" }).kind).toBeNull();
-    for (const page of ["0", "-2", "1.5", "abc", "", "NaN", "Infinity"]) {
-      expect(parseFeedQuery({ page }).page, page).toBe(1);
-    }
+  it("falls back for anything else", () => {
+    for (const page of ["0", "-2", "1.5", "abc", "", "NaN", "Infinity"]) expect(parsePage(page), page).toBe(1);
   });
 
   it("caps the page so a crafted URL cannot ask for an absurd offset", () => {
-    expect(parseFeedQuery({ page: "99999999" }).page).toBe(FEED_MAX_PAGE);
+    expect(parsePage("99999999")).toBe(FEED_MAX_PAGE);
   });
 
   it("uses the first value of a repeated parameter", () => {
-    expect(parseFeedQuery({ kind: ["game", "book"], page: ["2", "5"] })).toEqual({ kind: "game", page: 2 });
+    expect(parsePage(["2", "5"])).toBe(2);
   });
 });
 
-describe("feedHref", () => {
+describe("parseFeedTab", () => {
+  it("knows two tabs and defaults to the latest", () => {
+    expect(parseFeedTab("following")).toBe("following");
+    expect(parseFeedTab("latest")).toBe("latest");
+    expect(parseFeedTab("whatever")).toBe("latest");
+    expect(parseFeedTab(undefined)).toBe("latest");
+    expect(parseFeedTab(["following", "x"])).toBe("following");
+  });
+});
+
+describe("buildHref", () => {
   it("leaves the defaults out", () => {
-    expect(feedHref({ kind: null, page: 1 })).toBe("/");
-    expect(feedHref({ kind: "anime", page: 1 })).toBe("/?kind=anime");
-    expect(feedHref({ kind: null, page: 2 })).toBe("/?page=2");
-    expect(feedHref({ kind: "manga", page: 4 })).toBe("/?kind=manga&page=4");
+    expect(buildHref("/", {})).toBe("/");
+    expect(buildHref("/", { tab: "latest", page: 1 })).toBe("/");
+    expect(buildHref("/", { tab: "following" })).toBe("/?tab=following");
+    expect(buildHref("/t/abc", { page: 3 })).toBe("/t/abc?page=3");
+  });
+
+  it("keeps the other parameters and encodes them", () => {
+    expect(buildHref("/search", { q: "孤独 摇滚", page: 2 })).toBe("/search?q=%E5%AD%A4%E7%8B%AC+%E6%91%87%E6%BB%9A&page=2");
+    expect(buildHref("/tags", { kind: "book", sort: null, q: "" })).toBe("/tags?kind=book");
   });
 });
 
-describe("feedExcerpt", () => {
-  it("is empty when there is no note", () => {
-    expect(feedExcerpt(null)).toBe("");
-    expect(feedExcerpt(undefined)).toBe("");
-    expect(feedExcerpt({ type: "doc", content: [] })).toBe("");
+describe("excerptOf", () => {
+  it("is empty when there is no text", () => {
+    expect(excerptOf(null)).toBe("");
+    expect(excerptOf(undefined)).toBe("");
+    expect(excerptOf("  \n ")).toBe("");
   });
 
-  it("flattens a note to one line and keeps the anchor chips readable", () => {
-    const doc = paragraph(text("看 "), { type: "anchorChip", attrs: { page: 132 } }, text("\n\n  的时候想到的"));
-    expect(feedExcerpt(doc)).toBe("看 p.132 的时候想到的");
+  it("flattens whitespace", () => {
+    expect(excerptOf("第一行\n\n  第二行")).toBe("第一行 第二行");
   });
 
-  it("cuts long notes on a character boundary", () => {
-    const long = "字".repeat(300);
-    const excerpt = feedExcerpt(paragraph(text(long)));
+  it("cuts long text on a character boundary", () => {
+    const excerpt = excerptOf("字".repeat(300));
     expect(Array.from(excerpt)).toHaveLength(141);
     expect(excerpt.endsWith("…")).toBe(true);
-
     // an emoji is one character, never half of a surrogate pair
-    const emoji = feedExcerpt(paragraph(text("😀".repeat(200))));
-    expect(emoji).toBe(`${"😀".repeat(140)}…`);
-  });
-
-  it("does not trust the stored document: unknown nodes are dropped", () => {
-    const hostile = {
-      type: "doc",
-      content: [
-        { type: "script", content: [text("alert(1)")] },
-        { type: "paragraph", content: [text("fine")] },
-      ],
-    };
-    expect(feedExcerpt(hostile)).toBe("fine");
-    expect(feedExcerpt("not a document")).toBe("");
+    expect(excerptOf("😀".repeat(200))).toBe(`${"😀".repeat(140)}…`);
+    expect(excerptOf("abcdef", 3)).toBe("abc…");
   });
 });

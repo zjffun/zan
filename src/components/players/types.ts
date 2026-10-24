@@ -1,4 +1,4 @@
-import type { Source } from "@/lib/types";
+import type { PostSource } from "@/lib/types";
 
 /** What the page can ask of whichever player is showing. */
 export interface PlayerHandle {
@@ -8,4 +8,4 @@ export interface PlayerHandle {
   seekTo(seconds: number): void;
 }
 
-export type PlayerSource = Pick<Source, "provider" | "ref" | "meta" | "status">;
+export type PlayerSource = PostSource & { status: "ok" | "dead" };

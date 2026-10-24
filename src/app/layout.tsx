@@ -1,12 +1,11 @@
 import type { Metadata, Viewport } from "next";
-import { DESCRIPTION, TAGLINE } from "@/lib/brand";
 import { siteUrlFallback } from "@/lib/site";
 import "./globals.css";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrlFallback()),
-  title: { default: `zan — ${TAGLINE}`, template: "%s · zan" },
-  description: DESCRIPTION,
+  title: { default: "zan", template: "%s · zan" },
+  description: "攒下每一部作品的视频时间点、书的页码和你自己的笔记。只存引用，不存内容；默认私人，一键发布。",
 };
 
 export const viewport: Viewport = {
@@ -22,8 +21,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="min-h-full flex flex-col">
         <div className="flex-1">{children}</div>
         <footer className="border-t border-line px-4 py-6 text-center text-xs text-muted">
-          <p>zan（攒）· 看过的、读过的，一点一点攒下来。</p>
-          <p className="mt-1">只存引用，不存内容：视频用官方播放器，书只记页码和你自己摘的短句。</p>
+          看过的、读过的，一点一点攒下来。
         </footer>
       </body>
     </html>
