@@ -7,7 +7,7 @@ vi.mock("@/lib/server/http", async (importOriginal) => {
 
 import { fetchJson, followAllowedRedirects } from "@/lib/server/http";
 import { normalizeBilibiliImage, parseIsoDuration, resolveLink } from "@/lib/links/resolve";
-import { REDIRECT_ALLOWED_HOSTS } from "@/lib/links/hosts";
+import { isAllowedImageRedirectHost, REDIRECT_ALLOWED_HOSTS } from "@/lib/links/hosts";
 
 const mockFetchJson = vi.mocked(fetchJson);
 
@@ -223,6 +223,20 @@ describe("followAllowedRedirects (SSRF guard)", () => {
     expect(fn).toHaveBeenCalledTimes(4);
   });
 
+  it("accepts a predicate, e.g. Open Library covers bouncing through archive.org", async () => {
+    stubFetch(
+      redirect("https://archive.org/download/m_covers_0010/a.zip/b.jpg"),
+      redirect("https://ia600505.us.archive.org/view_archive.php?file=b.jpg"),
+      ok(),
+    );
+    expect(await followAllowedRedirects("https://covers.openlibrary.org/b/id/1-M.jpg", isAllowedImageRedirectHost)).toBe(
+      "https://ia600505.us.archive.org/view_archive.php?file=b.jpg",
+    );
+    const fn = stubFetch(redirect("https://archive.org.evil.example/x.jpg"));
+    expect(await followAllowedRedirects("https://covers.openlibrary.org/b/id/1-M.jpg", isAllowedImageRedirectHost)).toBeNull();
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+
   it("resolveLink rejects a short link that ends elsewhere", async () => {
     stubFetch(redirect("https://evil.example/x"));
     expect(await resolveLink("https://b23.tv/abc")).toMatchObject({ ok: false });
@@ -280,5 +294,26 @@ describe("checkVideoHealth", () => {
     mockFetchJson.mockRejectedValueOnce(new Error("network"));
     expect(await checkVideoHealth("youtube", yt)).toBe("unknown");
     expect(await checkVideoHealth("episode", {})).toBe("unknown");
+  });
+});
+
+describe("nextHealthState", () => {
+  it("does not believe a single dead answer, but two in a row", async () => {
+    const { nextHealthState } = await import("@/lib/links/check");
+    const fresh = { status: "ok" as const, fail_count: 0 };
+    const once = nextHealthState(fresh, "dead");
+    expect(once).toEqual({ status: "ok", fail_count: 1 });
+    expect(nextHealthState(once!, "dead")).toEqual({ status: "dead", fail_count: 2 });
+  });
+
+  it("revives a source and resets the counter on ok", async () => {
+    const { nextHealthState } = await import("@/lib/links/check");
+    expect(nextHealthState({ status: "dead", fail_count: 3 }, "ok")).toEqual({ status: "ok", fail_count: 0 });
+    expect(nextHealthState({ status: "ok", fail_count: 1 }, "ok")).toEqual({ status: "ok", fail_count: 0 });
+  });
+
+  it("leaves everything alone when the answer is unknown", async () => {
+    const { nextHealthState } = await import("@/lib/links/check");
+    expect(nextHealthState({ status: "ok", fail_count: 1 }, "unknown")).toBeNull();
   });
 });

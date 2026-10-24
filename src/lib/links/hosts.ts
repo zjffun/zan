@@ -42,3 +42,12 @@ export function isAllowedImageUrl(value: string): boolean {
     return false;
   }
 }
+
+/**
+ * Hosts an image URL may be *redirected* through. Open Library covers answer with a
+ * 302 to archive.org, which in turn redirects to a rotating ia*.us.archive.org server.
+ */
+export function isAllowedImageRedirectHost(hostname: string): boolean {
+  const h = hostname.toLowerCase();
+  return isAllowedImageHost(h) || h === "archive.org" || h.endsWith(".archive.org");
+}

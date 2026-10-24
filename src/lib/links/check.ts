@@ -44,3 +44,26 @@ export async function checkVideoHealth(
   }
   return "unknown";
 }
+
+/** Consecutive "dead" answers needed before a source is marked dead. */
+export const DEAD_AFTER = 2;
+
+export interface HealthState {
+  status: "ok" | "dead";
+  fail_count: number;
+}
+
+/**
+ * Folds one check result into a source's stored state. Returns null when nothing
+ * should change ("unknown": the platform gave no trustworthy answer).
+ *
+ * A single "dead" is not believed: platforms (Bilibili in particular) sometimes answer
+ * rate-limited requests with a convincing "not found". Only DEAD_AFTER consecutive dead
+ * answers flip the status; any ok answer revives the source and resets the counter.
+ */
+export function nextHealthState(current: HealthState, health: SourceHealth): HealthState | null {
+  if (health === "unknown") return null;
+  if (health === "ok") return { status: "ok", fail_count: 0 };
+  const fail_count = Math.min(current.fail_count + 1, 100);
+  return { status: fail_count >= DEAD_AFTER ? "dead" : current.status, fail_count };
+}

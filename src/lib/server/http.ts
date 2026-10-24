@@ -64,7 +64,7 @@ export async function fetchJson(
  */
 export async function followAllowedRedirects(
   start: string,
-  allowedHosts: ReadonlySet<string>,
+  allowedHosts: ReadonlySet<string> | ((hostname: string) => boolean),
   { maxHops = 4, timeoutMs = 6000 }: { maxHops?: number; timeoutMs?: number } = {},
 ): Promise<string | null> {
   let current = start;
@@ -76,7 +76,8 @@ export async function followAllowedRedirects(
       return null;
     }
     if (url.protocol !== "https:" || url.username || url.password || url.port) return null;
-    if (!allowedHosts.has(url.hostname.toLowerCase())) return null;
+    const host = url.hostname.toLowerCase();
+    if (!(typeof allowedHosts === "function" ? allowedHosts(host) : allowedHosts.has(host))) return null;
 
     const res = await fetch(url, {
       redirect: "manual",

@@ -57,6 +57,7 @@ export interface Source {
   ref: Record<string, unknown>;
   meta: SourceMeta | null;
   status: "ok" | "dead";
+  fail_count: number;
   checked_at: string | null;
   created_at: string;
 }

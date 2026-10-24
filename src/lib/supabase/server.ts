@@ -1,6 +1,7 @@
 import "server-only";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { connection } from "next/server";
 import { requireSupabaseConfig } from "./config";
 
 /**
@@ -12,6 +13,9 @@ export async function createClient() {
   // cookies() first: while prerendering this suspends the render right here, so a build
   // without Supabase credentials never reaches the configuration check below.
   const cookieStore = await cookies();
+  // Session handling reads the clock (token expiry). Opt out of every kind of prerendering,
+  // including the cookie-aware App Shell prefetch: user data is only ever produced per request.
+  await connection();
   const { url, key } = requireSupabaseConfig();
   return createServerClient(url, key, {
     cookies: {

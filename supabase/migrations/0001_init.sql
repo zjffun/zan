@@ -75,6 +75,9 @@ create table public.sources (
   -- snapshot of title / author / duration / thumbnail so notes stay readable if the video dies
   meta       jsonb check (meta is null or jsonb_typeof(meta) = 'object'),
   status     text not null default 'ok' check (status in ('ok', 'dead')),
+  -- consecutive "looks dead" answers from the checker; status flips to dead at 2, because
+  -- Bilibili sometimes answers blocked requests with a plausible -404
+  fail_count smallint not null default 0 check (fail_count >= 0),
   checked_at timestamptz,
   created_at timestamptz not null default now(),
   unique (id, jar_id),
