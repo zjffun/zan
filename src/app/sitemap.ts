@@ -11,7 +11,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // database unreachable: still serve the static entries
   }
   return [
-    { url: base, changeFrequency: "monthly", priority: 0.5 },
+    { url: base, changeFrequency: "daily", priority: 1 },
     ...pages.map((page) => ({
       url: `${base}/p/${page.slug}`,
       lastModified: new Date(page.published_at),

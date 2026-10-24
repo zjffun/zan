@@ -23,7 +23,7 @@ export async function requestSiteUrl(): Promise<string> {
   return host ? `${proto}://${host}` : "http://localhost:3000";
 }
 
-/** Only same-site relative paths: "/jars/x" yes, "//evil.example" and "https://…" no. */
-export function safeNextPath(value: unknown, fallback = "/jars"): string {
+/** Only same-site relative paths: "/jars/x" yes, "//evil.example" and "https://…" no. After signing in you land on the feed. */
+export function safeNextPath(value: unknown, fallback = "/"): string {
   return typeof value === "string" && /^\/(?![/\\])[^\s]*$/.test(value) ? value : fallback;
 }

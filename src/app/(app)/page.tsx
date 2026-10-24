@@ -1,55 +1,131 @@
 import Link from "next/link";
+import { Suspense } from "react";
+import { FeedCard } from "@/components/FeedCard";
+import { feedHref, parseFeedQuery } from "@/lib/feed";
+import { listPublicFeed, type FeedPage } from "@/lib/public";
+import { WORK_KINDS, WORK_KIND_LABEL } from "@/lib/types";
 
-const FEATURES = [
-  {
-    title: "视频时间点",
-    body: "YouTube 一键记下当前时间，B 站粘贴带 ?t= 的链接或手打 12:34。点击时间戳，播放器直接跳过去。",
-  },
-  {
-    title: "书的页码与摘录",
-    body: "页码加一句你自己摘的短句（200 字以内），始终是引用，不是转载。番剧记“第几集 + 时间码”。",
-  },
-  {
-    title: "默认私人",
-    body: "罐子、资源和笔记只有你自己看得到，权限落在数据库层。想分享时，一键发布一份快照页。",
-  },
-  {
-    title: "随时带走",
-    body: "导出 Markdown：时间锚点是 youtu.be/ID?t=754 这样的链接，页码锚点是 p.132。",
-  },
-];
-
-export default function Home() {
+/** The way in to writing: always on top, for visitors too (they are asked to sign in first). */
+function ComposeBar() {
   return (
-    <main className="mx-auto max-w-5xl px-4 py-14 sm:py-20">
-      <section className="max-w-2xl">
-        <p className="mb-3 text-sm font-medium text-accent">只存引用，不存内容</p>
-        <h1 className="text-4xl font-bold leading-tight tracking-tight sm:text-5xl">
-          给每一部作品
-          <br />
-          一个研究罐子
-        </h1>
-        <p className="mt-5 text-lg text-muted">
-          站点只保存作品、视频 ID、时间点、页码和你写的笔记。视频一律用官方播放器嵌入或外链打开，书只记页码和你自己摘的短句。
-        </p>
-        <div className="mt-8 flex flex-wrap gap-3">
-          <Link href="/login" className="btn btn-primary">
-            开始使用
-          </Link>
-          <a href="https://github.com/zjffun/zan" className="btn" rel="noopener noreferrer">
-            GitHub
-          </a>
-        </div>
-      </section>
+    <Link
+      href="/jars/new"
+      className="card flex items-center gap-3 px-4 py-3 text-muted transition-colors hover:bg-sunken"
+    >
+      <span aria-hidden className="flex size-8 shrink-0 items-center justify-center rounded-full bg-accent-soft text-lg text-accent">
+        +
+      </span>
+      <span className="min-w-0 flex-1 truncate text-sm">记一部作品：动画、书、游戏、一个视频系列……</span>
+      <span className="btn btn-primary btn-sm shrink-0">新建罐子</span>
+    </Link>
+  );
+}
 
-      <section className="mt-16 grid gap-4 sm:grid-cols-2">
-        {FEATURES.map((feature) => (
-          <div key={feature.title} className="card p-5">
-            <h2 className="font-semibold">{feature.title}</h2>
-            <p className="mt-1.5 text-sm text-muted">{feature.body}</p>
-          </div>
+function FeedSkeleton() {
+  return (
+    <div aria-hidden>
+      <div className="mt-5 h-8 w-64 animate-pulse rounded-lg bg-sunken" />
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        {Array.from({ length: 6 }, (_, i) => (
+          <div key={i} className="h-36 animate-pulse rounded-xl bg-sunken" />
         ))}
-      </section>
+      </div>
+    </div>
+  );
+}
+
+async function Feed({ searchParams }: Pick<PageProps<"/">, "searchParams">) {
+  const query = parseFeedQuery(await searchParams);
+
+  let feed: FeedPage | null = null;
+  try {
+    feed = await listPublicFeed(query);
+  } catch {
+    // database unreachable: say so instead of failing the whole page
+  }
+
+  const tabs = [{ kind: null, label: "全部" }, ...WORK_KINDS.map((kind) => ({ kind, label: WORK_KIND_LABEL[kind] }))];
+
+  return (
+    <>
+      <nav aria-label="分类" className="-mx-4 mt-5 flex gap-1.5 overflow-x-auto px-4 pb-1">
+        {tabs.map((tab) => {
+          const active = tab.kind === query.kind;
+          return (
+            <Link
+              key={tab.label}
+              href={feedHref({ kind: tab.kind, page: 1 })}
+              aria-current={active ? "page" : undefined}
+              className={`btn btn-sm shrink-0 ${active ? "!border-accent !bg-accent-soft !text-accent" : ""}`}
+            >
+              {tab.label}
+            </Link>
+          );
+        })}
+      </nav>
+
+      {!feed ? (
+        <p role="alert" className="card mt-4 px-6 py-12 text-center text-sm text-muted">
+          内容暂时无法加载，请稍后刷新重试。
+        </p>
+      ) : feed.items.length === 0 ? (
+        <div className="card mt-4 px-6 py-12 text-center">
+          <p className="font-medium">{query.page > 1 ? "这一页没有内容了" : "这里还没有内容"}</p>
+          <p className="mt-1 text-sm text-muted">
+            {query.page > 1 ? "回到第一页看看。" : "发布一个罐子，它就会出现在这里。"}
+          </p>
+          {query.page > 1 ? (
+            <Link href={feedHref({ kind: query.kind, page: 1 })} className="btn mt-5">
+              回到第一页
+            </Link>
+          ) : (
+            <Link href="/jars/new" className="btn btn-primary mt-5">
+              新建罐子
+            </Link>
+          )}
+        </div>
+      ) : (
+        <>
+          <ul className="mt-4 grid gap-3 sm:grid-cols-2">
+            {feed.items.map((item) => (
+              <li key={item.slug}>
+                <FeedCard item={item} />
+              </li>
+            ))}
+          </ul>
+          {query.page > 1 || feed.hasMore ? (
+            <nav aria-label="翻页" className="mt-6 flex items-center justify-between">
+              {query.page > 1 ? (
+                <Link href={feedHref({ ...query, page: query.page - 1 })} className="btn">
+                  上一页
+                </Link>
+              ) : (
+                <span />
+              )}
+              <span className="text-sm text-muted">第 {query.page} 页</span>
+              {feed.hasMore ? (
+                <Link href={feedHref({ ...query, page: query.page + 1 })} className="btn">
+                  下一页
+                </Link>
+              ) : (
+                <span />
+              )}
+            </nav>
+          ) : null}
+        </>
+      )}
+    </>
+  );
+}
+
+export default function Home(props: PageProps<"/">) {
+  return (
+    <main className="mx-auto max-w-5xl px-4 py-6 sm:py-8">
+      <h1 className="sr-only">发现</h1>
+      <ComposeBar />
+      <Suspense fallback={<FeedSkeleton />}>
+        <Feed searchParams={props.searchParams} />
+      </Suspense>
     </main>
   );
 }

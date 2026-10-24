@@ -6,6 +6,9 @@
 //   /auth/v1/*  -> just enough of GoTrue: password sign-up/sign-in, token
 //                  refresh, /user, logout. Users are auto-confirmed.
 //
+// A fixed dev account always exists (ZAN_DEV_EMAIL / ZAN_DEV_PASSWORD below), so
+// signing in keeps working after a restart, which forgets every other password.
+//
 // DEV ONLY. Passwords live in memory, there is no rate limiting, no e-mail,
 // no OAuth. Never expose this to a network.
 
@@ -17,6 +20,8 @@ const PORT = Number(process.env.GATEWAY_PORT ?? 54321);
 const POSTGREST = process.env.POSTGREST_URL ?? "http://127.0.0.1:3001";
 const SECRET = process.env.JWT_SECRET ?? "zan-local-dev-secret-at-least-32-characters-long";
 const DB_URL = process.env.DATABASE_URL ?? "postgres:///zan_dev";
+const DEV_EMAIL = (process.env.ZAN_DEV_EMAIL ?? "dev@zan.local").toLowerCase();
+const DEV_PASSWORD = process.env.ZAN_DEV_PASSWORD ?? "zan-dev-123";
 
 const b64 = (input) => Buffer.from(input).toString("base64url");
 function sign(payload) {
@@ -162,6 +167,11 @@ async function rest(req, res, url) {
   res.end(Buffer.from(await upstream.arrayBuffer()));
 }
 
+// keeps the id the seed (or an earlier run) gave the account, so its jars stay its own
+const devUser = { id: existingIdFromDb(DEV_EMAIL) ?? crypto.randomUUID(), email: DEV_EMAIL, password: DEV_PASSWORD };
+users.set(devUser.email, devUser);
+ensureUserInDb(devUser);
+
 http
   .createServer(async (req, res) => {
     const url = new URL(req.url, `http://${req.headers.host}`);
@@ -178,6 +188,7 @@ http
     const now = Math.floor(Date.now() / 1000);
     const far = now + 10 * 365 * 86400;
     console.log(`dev gateway on http://127.0.0.1:${PORT}  ->  PostgREST ${POSTGREST}`);
+    console.log(`dev account: ${DEV_EMAIL} (password: see DEV_PASSWORD in scripts/dev/mock-supabase.mjs)`);
     console.log(`SUPABASE_URL=http://127.0.0.1:${PORT}`);
     console.log(`SUPABASE_ANON_KEY=${sign({ role: "anon", iss: "zan-dev", iat: now, exp: far })}`);
     console.log(`SUPABASE_SERVICE_ROLE_KEY=${sign({ role: "service_role", iss: "zan-dev", iat: now, exp: far })}`);

@@ -147,6 +147,7 @@ begin;
 set local role anon;
 select t.ok((select count(*) from public.get_publication(:'pub_slug')) = 1, 'anon can read an unlisted snapshot by slug');
 select t.ok((select count(*) from public.list_public_publications()) = 0, 'unlisted pages are not listed');
+select t.ok((select count(*) from public.list_public_feed()) = 0, 'unlisted pages are not in the feed');
 select t.ok(
   (select jsonb_array_length(snapshot -> 'notes') from public.get_publication(:'pub_slug')) = 1,
   'hide_on_publish notes are not in the snapshot');
@@ -163,13 +164,26 @@ begin;
 select set_config('request.jwt.claims', json_build_object('sub', :A::text)::text, true);
 set local role authenticated;
 update public.notes set plain_text = 'edited later' where id = '40000000-0000-0000-0000-000000000001';
-update public.notes set hide_on_publish = false where id = '40000000-0000-0000-0000-000000000002';
+update public.notes
+  set hide_on_publish = false,
+      body = '{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"hello feed"}]}]}'
+  where id = '40000000-0000-0000-0000-000000000002';
 select t.ok((select version from public.publish_jar('20000000-0000-0000-0000-000000000001', 'public')) = 2, 'republish bumps the version');
 commit;
 
 begin;
 set local role anon;
 select t.ok((select count(*) from public.list_public_publications()) = 1, 'public pages are listed');
+select t.ok((select count(*) from public.list_public_feed()) = 1, 'public pages are in the feed');
+select t.ok((select kind from public.list_public_feed()) = 'anime', 'feed rows carry the work kind');
+select t.ok((select note_count from public.list_public_feed()) = 2, 'feed rows count the published notes');
+select t.ok((select source_count from public.list_public_feed()) = 1, 'feed rows count the sources');
+select t.ok(
+  (select first_note -> 'content' -> 0 -> 'content' -> 0 ->> 'text' from public.list_public_feed()) = 'hello feed',
+  'the feed excerpt skips notes with an empty body');
+select t.ok((select count(*) from public.list_public_feed('anime')) = 1, 'the feed filters by kind');
+select t.ok((select count(*) from public.list_public_feed('book')) = 0, 'and the filter excludes other kinds');
+select t.ok((select count(*) from public.list_public_feed(null, 20, 1)) = 0, 'the feed pages with an offset');
 select t.ok(
   (select jsonb_array_length(snapshot -> 'notes') from public.get_publication(:'pub_slug')) = 2,
   'republish picks up the un-hidden note');
@@ -200,6 +214,7 @@ begin;
 set local role anon;
 select t.ok((select count(*) from public.get_publication(:'pub_slug')) = 0, 'an unpublished page is gone for the public');
 select t.ok((select count(*) from public.list_public_publications()) = 0, 'and no longer listed');
+select t.ok((select count(*) from public.list_public_feed()) = 0, 'and gone from the feed');
 rollback;
 
 -- the jar list orders by "last touched": notes and sources bump the jar

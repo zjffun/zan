@@ -15,6 +15,7 @@ zan 是一个“只存引用，不存内容”的作品笔记站：站点只保�
   - YouTube：`Alt+T` 或“记录当前时间”，把播放器当前时间插成时间戳标签；点击时间戳，播放器跳转
   - B 站：粘贴带 `?t=` 的链接，或手打 `12:34`；点击时间戳时带新的 `t` 重新加载播放器
   - 编辑器内输入 `@12:34`、`p.132`、`E5@12:34` 加空格，自动变成可点击的锚点标签
+- **首页即信息流**：打开就是大家公开发布的罐子（按类型筛选、翻页），顶栏和首页顶部随时可以“新建”；没登录点“新建”会先去登录，登录后回到新建页
 - **默认私人**：权限落在数据库层（行级权限），前端写错也不会泄漏
 - **一键公开**：生成快照（不是改状态），`仅链接可见`（随机地址 + noindex）或 `公开`（进 sitemap）
   - 单条笔记可标记“发布时隐藏”，不会进入快照
@@ -65,7 +66,7 @@ npm install
 cp .env.example .env.local   # 填入 SUPABASE_URL、SUPABASE_ANON_KEY 等
 ```
 
-1. 在 Supabase 的 SQL Editor 里依次运行 [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql)（必需）；如果要中文友好的搜索，再运行 [`0002_pgroonga_search.sql`](supabase/migrations/0002_pgroonga_search.sql)（也可以用 `supabase db push`）。
+1. 在 Supabase 的 SQL Editor 里依次运行 [`0001_init.sql`](supabase/migrations/0001_init.sql) 和 [`0003_public_feed.sql`](supabase/migrations/0003_public_feed.sql)（首页信息流，都必需）；如果要中文友好的搜索，再运行 [`0002_pgroonga_search.sql`](supabase/migrations/0002_pgroonga_search.sql)（也可以用 `supabase db push`，它会按编号顺序全部执行）。
 2. Authentication → URL Configuration：把 Site URL 设为你的站点地址，并在 Redirect URLs 里加入 `<站点地址>/auth/callback`。想用邮箱+密码注册后立即登录，可以在 Providers → Email 里关掉 “Confirm email”。
 3. 运行：
 
@@ -81,6 +82,8 @@ npm run dev      # http://localhost:3000
 brew install postgresql@16 postgrest      # 或从 github.com/PostgREST/postgrest 下载发行版二进制
 scripts/dev/local-stack.sh                # 建库、跑迁移，并打印要写进 .env.local 的变量
 ```
+
+启动后用固定的开发账号登录：邮箱 `dev@zan.local`，密码见 [`scripts/dev/mock-supabase.mjs`](scripts/dev/mock-supabase.mjs) 顶部的 `DEV_PASSWORD`（可用环境变量 `ZAN_DEV_EMAIL` / `ZAN_DEV_PASSWORD` 改）。网关重启会忘掉其他账号的密码，开发账号不会。第一次启动还会给它放三个已公开的示例罐子，让首页信息流不是空的（`ZAN_DEV_SEED=0` 跳过；它们只在账号一个罐子都没有时才会生成）。以后新增的迁移再运行这个脚本时会自动补上。
 
 如果用的是下载的 PostgREST 二进制，它链接的是 Homebrew 的 libpq；没装的话用 `LIBPQ_DIR=/opt/homebrew/opt/postgresql@16/lib scripts/dev/local-stack.sh` 指向任意 libpq 5。
 
@@ -124,6 +127,7 @@ npm run lint && npm run typecheck && npm run build
 
 - `jars` / `sources` / `notes` 全部开启 RLS，只有 owner 能读写；一条笔记只能关联本罐子的资源（复合外键）
 - 匿名访客读不了任何表。公开页通过两个 `security definer` 函数读快照：`get_publication(slug)` 和 `list_public_publications()`——后者只列出 `public`，所以 `unlisted` 页面不会被枚举出来
+- 首页信息流读 `list_public_feed(kind, limit, offset)`：同样是 `security definer`，只返回 `public` 快照里卡片需要的几个字段（作品、类型、笔记数、第一条有内容的笔记），不返回整份快照
 - `publications` 不能被直接写入：快照只能由 `publish_jar()` 在数据库里生成（owner 校验、`hide_on_publish` 过滤、版本号加一都在这一个事务里），拥有者也无法伪造快照
 
 **防 XSS**
@@ -139,7 +143,7 @@ npm run lint && npm run typecheck && npm run build
 
 **公开页缓存**
 
-`/p/[slug]` 使用 `'use cache'`，发布 / 取消发布 / 删除罐子时用 `updateTag` 立即失效页面、分享图和 sitemap；公开流量不会打到数据库。
+`/p/[slug]` 和首页信息流都使用 `'use cache'`，发布 / 取消发布 / 删除罐子时用 `updateTag` 立即失效页面、分享图、sitemap 和信息流；公开流量不会打到数据库。首页只有信息流部分在请求时渲染（读 `?kind=`、`?page=`），外壳是静态的。
 
 ## 部署
 
