@@ -159,3 +159,7 @@ npm run lint && npm run typecheck && npm run build
 - B 站接口是非官方的，随时可能变化
 - 共享作品目录没有审核：任何登录用户都可以手动创建条目（目录条目来自 Bangumi / Open Library 时标题由服务端抓取）
 - 每个用户的罐子 / 笔记数量没有配额
+
+## 许可
+
+[MIT](LICENSE) © zjffun
