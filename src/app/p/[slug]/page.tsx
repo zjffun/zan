@@ -36,7 +36,7 @@ export async function generateMetadata({ params }: PageProps<"/p/[slug]">): Prom
   const firstNote = snapshot.notes.map((n) => docToPlainText(sanitizeDocOrEmpty(n.body))).find(Boolean);
   const description = firstNote
     ? Array.from(firstNote).slice(0, 140).join("")
-    : `${snapshot.work.title} 的研究笔记：${snapshot.notes.length} 条笔记。`;
+    : `${snapshot.work.title} 的笔记，共 ${snapshot.notes.length} 条。`;
   return {
     title: snapshot.work.title,
     description,

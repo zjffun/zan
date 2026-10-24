@@ -79,7 +79,7 @@ export async function createNote(jarId: string, input: NoteInput): Promise<Actio
     .select("*")
     .single();
   if (error) {
-    if (error.code === POSTGRES_FK_VIOLATION) return fail("这个资源不属于当前罐子。");
+    if (error.code === POSTGRES_FK_VIOLATION) return fail("这个资源不属于当前作品。");
     return fail("保存失败。");
   }
   return { ok: true, note: data as Note };
@@ -98,7 +98,7 @@ export async function updateNote(noteId: string, input: NoteInput): Promise<Acti
   const supabase = await createClient();
   const { data, error } = await supabase.from("notes").update(prepared.value).eq("id", noteId).select("*").maybeSingle();
   if (error) {
-    if (error.code === POSTGRES_FK_VIOLATION) return fail("这个资源不属于当前罐子。");
+    if (error.code === POSTGRES_FK_VIOLATION) return fail("这个资源不属于当前作品。");
     return fail("保存失败。");
   }
   if (!data) return fail("找不到这条笔记。");

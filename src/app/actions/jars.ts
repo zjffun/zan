@@ -119,7 +119,7 @@ export async function createJar(input: unknown): Promise<ActionResult<{ jarId: s
       const existing = await supabase.from("jars").select("id").eq("work_id", work.workId).maybeSingle();
       if (existing.data) return { ok: true, jarId: existing.data.id };
     }
-    return fail("创建罐子失败。");
+    return fail("创建失败。");
   }
   return { ok: true, jarId: inserted.data.id };
 }
@@ -132,7 +132,7 @@ export async function deleteJar(jarId: string): Promise<ActionResult> {
 
   const supabase = await createClient();
   const jar = await supabase.from("jars").select("slug").eq("id", jarId).maybeSingle();
-  if (!jar.data) return fail("找不到这个罐子。");
+  if (!jar.data) return fail("找不到这部作品的笔记。");
 
   const { error } = await supabase.from("jars").delete().eq("id", jarId);
   if (error) return fail("删除失败。");

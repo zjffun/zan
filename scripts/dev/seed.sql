@@ -49,8 +49,8 @@ insert into public.notes (jar_id, source_id, anchor, body, plain_text) values
    '{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"示例笔记：番剧记“第几集 + 时间码”，比如 "},{"type":"anchorChip","attrs":{"ep":5,"t":754}},{"type":"text","text":"。"}]}]}',
    '示例笔记：番剧记“第几集 + 时间码”，比如 E5 12:34。'),
   ('de100000-0000-4000-8000-000000000003', 'de200000-0000-4000-8000-000000000003', null,
-   '{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"示例笔记：游戏、网页、任何外链都可以作为资源挂在罐子里，笔记不必有锚点。"}]}]}',
-   '示例笔记：游戏、网页、任何外链都可以作为资源挂在罐子里，笔记不必有锚点。');
+   '{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"示例笔记：游戏、网页、任何外链都可以作为资源挂在作品下，笔记不必有锚点。"}]}]}',
+   '示例笔记：游戏、网页、任何外链都可以作为资源挂在作品下，笔记不必有锚点。');
 
 select slug from public.publish_jar('de100000-0000-4000-8000-000000000001', 'public');
 select slug from public.publish_jar('de100000-0000-4000-8000-000000000002', 'public');

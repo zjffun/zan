@@ -144,7 +144,7 @@ function LinkTab({ jarId, onAdded }: { jarId: string; onAdded: (s: Source, start
             </p>
           ))}
           <button className="btn btn-primary btn-sm" onClick={add} disabled={busy || (preview.needsTitle && !title.trim())}>
-            {busy ? "添加中…" : "添加到罐子"}
+            {busy ? "添加中…" : "添加"}
           </button>
         </div>
       ) : null}

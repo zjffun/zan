@@ -5,7 +5,7 @@ import { Workspace } from "@/components/workspace/Workspace";
 import { loadJar, requireUser } from "@/lib/dal";
 import { requestSiteUrl } from "@/lib/site";
 
-export const metadata: Metadata = { title: "罐子", robots: { index: false, follow: false } };
+export const metadata: Metadata = { title: "笔记", robots: { index: false, follow: false } };
 
 async function Editor({ params }: Pick<PageProps<"/jars/[id]">, "params">) {
   const { id } = await params;

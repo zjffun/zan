@@ -58,7 +58,7 @@ export async function addSource(input: {
     .select("*")
     .single();
   if (error) {
-    if (error.code === POSTGRES_UNIQUE_VIOLATION) return fail("这个资源已经在罐子里了。");
+    if (error.code === POSTGRES_UNIQUE_VIOLATION) return fail("这个资源已经添加过了。");
     return fail("添加失败。");
   }
   return { ok: true, source: data as Source };

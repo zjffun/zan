@@ -55,7 +55,7 @@ export function PublishPanel({
   }
 
   async function remove() {
-    if (!confirm("删除整个罐子（所有资源和笔记），并撤下公开页。此操作无法撤销。")) return;
+    if (!confirm("删除这部作品下的所有资源和笔记，并撤下公开页。此操作无法撤销。")) return;
     setBusy("delete");
     const result = await deleteJar(jar.id);
     if (result && !result.ok) {
@@ -76,7 +76,7 @@ export function PublishPanel({
       </div>
 
       {!publication ? (
-        <p className="mt-1 text-sm text-muted">罐子默认只有你自己看得到。发布会生成一份只读快照页，之后你继续改笔记不会影响它。</p>
+        <p className="mt-1 text-sm text-muted">你攒的内容默认只有自己看得到。发布会生成一份只读快照页，之后你继续改笔记不会影响它。</p>
       ) : (
         <div className="mt-2 space-y-1 text-sm">
           <div className="flex items-center gap-2">
@@ -143,7 +143,7 @@ export function PublishPanel({
           导出 Markdown
         </a>
         <button className="btn btn-quiet btn-danger btn-sm ml-auto" onClick={remove} disabled={busy !== null}>
-          删除罐子
+          删除全部笔记
         </button>
       </div>
     </section>

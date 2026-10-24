@@ -1,11 +1,12 @@
 import { ImageResponse } from "next/og";
+import { TAGLINE } from "@/lib/brand";
 import { isAllowedImageRedirectHost, isAllowedImageUrl } from "@/lib/links/hosts";
 import { followAllowedRedirects } from "@/lib/server/http";
 import { getPublicPage, listPublicPages, SLUG_PATTERN } from "@/lib/public";
 import { parseSnapshot } from "@/lib/snapshot";
 import { WORK_KIND_LABEL } from "@/lib/types";
 
-export const alt = "zan 作品笔记";
+export const alt = "zan 攒作品笔记";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -70,12 +71,12 @@ export default async function Image({ params }: { params: Promise<{ slug: string
   const title = snapshot?.work.title ?? "zan";
   const original = snapshot?.work.title_original ?? "";
   const kind = snapshot ? WORK_KIND_LABEL[snapshot.work.kind] : "";
-  const stats = snapshot ? `${snapshot.notes.length} 条笔记 · ${snapshot.sources.length} 个资源` : "作品研究罐子";
+  const stats = snapshot ? `${snapshot.notes.length} 条笔记 · ${snapshot.sources.length} 个资源` : TAGLINE;
   const shownTitle = Array.from(title).slice(0, 48).join("");
   const shownOriginal = Array.from(original).slice(0, 60).join("");
 
   const [font, cover] = await Promise.all([
-    loadFont(`${shownTitle}${shownOriginal}${kind}${stats}zan · 作品研究罐子0123456789`),
+    loadFont(`${shownTitle}${shownOriginal}${kind}${stats}zan · ${TAGLINE}0123456789`),
     loadCover(snapshot?.work.cover_url ?? null),
   ]);
 
@@ -109,7 +110,7 @@ export default async function Image({ params }: { params: Promise<{ slug: string
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", fontSize: 30, color: "#6b655a" }}>
             <div style={{ display: "flex" }}>{stats}</div>
-            <div style={{ display: "flex", color: "#2b6657", fontWeight: 700 }}>zan · 作品研究罐子</div>
+            <div style={{ display: "flex", color: "#2b6657", fontWeight: 700 }}>{`zan · ${TAGLINE}`}</div>
           </div>
         </div>
       </div>

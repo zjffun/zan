@@ -242,7 +242,7 @@ export function Workspace({ initial, origin }: { initial: JarBundle; origin: str
                 type="search"
                 value={filter}
                 onChange={(e) => setFilter(e.target.value)}
-                placeholder="在这个罐子里搜索"
+                placeholder="在这部作品的笔记里搜索"
                 aria-label="搜索笔记"
               />
               <div className="flex rounded-lg border border-line p-0.5 text-sm" role="group" aria-label="笔记范围">

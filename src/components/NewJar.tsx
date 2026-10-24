@@ -109,7 +109,7 @@ export function NewJar() {
                       )
                     }
                   >
-                    {busyId === key ? "创建中…" : "创建罐子"}
+                    {busyId === key ? "创建中…" : "开始攒"}
                   </button>
                 </li>
               );
@@ -183,7 +183,7 @@ function ManualForm({
         </label>
         <div className="sm:col-span-2">
           <button className="btn btn-primary" disabled={disabled || !title.trim()}>
-            {busy ? "创建中…" : "创建罐子"}
+            {busy ? "创建中…" : "开始攒"}
           </button>
         </div>
       </form>

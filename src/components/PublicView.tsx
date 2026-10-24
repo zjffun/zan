@@ -104,7 +104,7 @@ export function PublicView({ work, links, sources, notes, publishedAt, version, 
             <SourcePlayer key={`${activeSource.id}:${active.startAt ?? 0}`} source={activeSource} startAt={active.startAt} handleRef={playerRef} />
           ) : (
             <div className="flex aspect-video items-center justify-center rounded-xl border border-dashed border-line text-sm text-muted">
-              这个罐子还没有资源
+              还没有添加资源
             </div>
           )}
         </div>

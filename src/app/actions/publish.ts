@@ -34,7 +34,7 @@ export async function publishJar(
     p_visibility: parsed.data.visibility,
   });
   const row = Array.isArray(data) ? data[0] : data;
-  if (error || !row) return fail(error?.code === "P0002" ? "找不到这个罐子。" : "发布失败。");
+  if (error || !row) return fail(error?.code === "P0002" ? "找不到这部作品的笔记。" : "发布失败。");
 
   // Expire the cached public page, its share image and the sitemap right away.
   updateTag(`pub:${row.slug}`);
@@ -53,7 +53,7 @@ export async function unpublishJar(jarId: string): Promise<ActionResult> {
 
   const supabase = await createClient();
   const jar = await supabase.from("jars").select("slug").eq("id", jarId).maybeSingle();
-  if (!jar.data) return fail("找不到这个罐子。");
+  if (!jar.data) return fail("找不到这部作品的笔记。");
 
   const { error } = await supabase.rpc("unpublish_jar", { p_jar_id: jarId });
   if (error) return fail("取消发布失败。");

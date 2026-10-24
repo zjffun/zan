@@ -6,7 +6,7 @@ import { VisibilityBadge } from "@/components/VisibilityBadge";
 import { listJars, requireUser } from "@/lib/dal";
 import { WORK_KIND_LABEL } from "@/lib/types";
 
-export const metadata: Metadata = { title: "我的罐子" };
+export const metadata: Metadata = { title: "我攒的作品" };
 
 const dateFormat = new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeZone: "Asia/Shanghai" });
 
@@ -17,10 +17,10 @@ async function JarList() {
   if (jars.length === 0) {
     return (
       <div className="card mt-6 px-6 py-12 text-center">
-        <p className="font-medium">还没有罐子</p>
+        <p className="font-medium">还没有攒过作品</p>
         <p className="mt-1 text-sm text-muted">选一部作品，开始记第一条笔记。</p>
         <Link href="/jars/new" className="btn btn-primary mt-5">
-          新建罐子
+          攒一部作品
         </Link>
       </div>
     );
@@ -56,9 +56,9 @@ export default function JarsPage() {
   return (
     <main className="mx-auto max-w-6xl px-4 py-8">
       <div className="flex items-center justify-between gap-4">
-        <h1 className="text-2xl font-bold tracking-tight">我的罐子</h1>
+        <h1 className="text-2xl font-bold tracking-tight">我攒的作品</h1>
         <Link href="/jars/new" className="btn btn-primary">
-          新建罐子
+          新建
         </Link>
       </div>
       <Suspense fallback={<div className="mt-6 h-40 animate-pulse rounded-xl bg-sunken" />}>

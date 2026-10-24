@@ -15,8 +15,8 @@ function ComposeBar() {
       <span aria-hidden className="flex size-8 shrink-0 items-center justify-center rounded-full bg-accent-soft text-lg text-accent">
         +
       </span>
-      <span className="min-w-0 flex-1 truncate text-sm">记一部作品：动画、书、游戏、一个视频系列……</span>
-      <span className="btn btn-primary btn-sm shrink-0">新建罐子</span>
+      <span className="min-w-0 flex-1 truncate text-sm">攒一部作品：动画、书、游戏、一个视频系列……</span>
+      <span className="btn btn-primary btn-sm shrink-0">新建</span>
     </Link>
   );
 }
@@ -72,7 +72,7 @@ async function Feed({ searchParams }: Pick<PageProps<"/">, "searchParams">) {
         <div className="card mt-4 px-6 py-12 text-center">
           <p className="font-medium">{query.page > 1 ? "这一页没有内容了" : "这里还没有内容"}</p>
           <p className="mt-1 text-sm text-muted">
-            {query.page > 1 ? "回到第一页看看。" : "发布一个罐子，它就会出现在这里。"}
+            {query.page > 1 ? "回到第一页看看。" : "发布你攒的笔记，它就会出现在这里。"}
           </p>
           {query.page > 1 ? (
             <Link href={feedHref({ kind: query.kind, page: 1 })} className="btn mt-5">
@@ -80,7 +80,7 @@ async function Feed({ searchParams }: Pick<PageProps<"/">, "searchParams">) {
             </Link>
           ) : (
             <Link href="/jars/new" className="btn btn-primary mt-5">
-              新建罐子
+              攒一部作品
             </Link>
           )}
         </div>

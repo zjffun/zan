@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { signOut } from "@/app/actions/auth";
+import { TAGLINE } from "@/lib/brand";
 import { getCurrentUser, type CurrentUser } from "@/lib/dal";
 
 /** Always offered, also to visitors: /jars/new sends them through the login page and back. */
@@ -18,14 +19,14 @@ export function HeaderView({ user }: { user: CurrentUser | null | "loading" | "s
       <div className="mx-auto flex h-14 max-w-6xl items-center gap-4 px-4">
         <Link href="/" className="flex items-baseline gap-2 font-semibold tracking-tight">
           <span className="text-lg">zan</span>
-          <span className="hidden text-xs font-normal text-muted sm:inline">作品研究罐子</span>
+          <span className="hidden text-xs font-normal text-muted sm:inline">{TAGLINE}</span>
         </Link>
         <nav className="ml-auto flex items-center gap-2 text-sm">
           {user === "loading" ? null : user === "static" ? (
             // public pages are cached and identical for everybody: no session lookup here
             <>
               <Link href="/jars" className="btn btn-quiet btn-sm">
-                我的罐子
+                我攒的
               </Link>
               <NewJarLink />
             </>
@@ -35,7 +36,7 @@ export function HeaderView({ user }: { user: CurrentUser | null | "loading" | "s
                 搜索笔记
               </Link>
               <Link href="/jars" className="btn btn-quiet btn-sm">
-                我的罐子
+                我攒的
               </Link>
               <NewJarLink />
               <form action={signOut}>

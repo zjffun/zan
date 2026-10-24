@@ -46,7 +46,7 @@ async function Results({ searchParams }: Pick<PageProps<"/search">, "searchParam
           type="search"
           name="q"
           defaultValue={query}
-          placeholder="搜索所有罐子里的笔记和作品名"
+          placeholder="搜索你所有的笔记和作品名"
           aria-label="搜索关键词"
           autoFocus
         />
