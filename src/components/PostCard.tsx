@@ -70,7 +70,7 @@ export function PostCard({ post, liked, signedIn }: { post: PostCardData; liked:
         ) : null}
 
         <div className="relative z-20 flex items-center gap-3 pt-1 text-xs text-muted">
-          <Link href={`/u/${post.author.id}`} className="flex min-w-0 items-center gap-1.5 hover:text-ink">
+          <Link href={`/u/${post.author.id}`} className="tap flex min-w-0 items-center gap-1.5 hover:text-ink">
             <Avatar id={post.author.id} name={post.author.nickname} size="sm" />
             <span className="truncate">{post.author.nickname}</span>
           </Link>

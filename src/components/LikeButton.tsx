@@ -45,8 +45,8 @@ export function LikeButton({
       onClick={toggle}
       disabled={pending}
       aria-pressed={state.liked}
-      aria-label={state.liked ? "取消点赞" : "点赞"}
-      className={`inline-flex items-center gap-1 text-sm tabular-nums transition-colors hover:text-accent ${state.liked ? "text-accent" : "text-muted"} ${className}`}
+      aria-label={`${state.liked ? "取消点赞" : "点赞"}${state.count > 0 ? `（${state.count}）` : ""}`}
+      className={`tap inline-flex items-center gap-1 text-sm tabular-nums transition-colors hover:text-accent ${state.liked ? "text-accent" : "text-muted"} ${className}`}
     >
       <HeartIcon filled={state.liked} className="size-4" />
       {state.count > 0 ? state.count : "赞"}

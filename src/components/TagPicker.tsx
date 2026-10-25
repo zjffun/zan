@@ -91,6 +91,7 @@ export function TagPicker({ value, onChange }: { value: TagPick[]; onChange: (ne
         ))}
         <input
           className="min-w-32 flex-1 bg-transparent px-1 py-0.5 text-sm outline-none"
+          name="tag"
           value={text}
           onChange={(event) => {
             setText(event.target.value);

@@ -31,7 +31,7 @@ export function FavoriteButton({ postId, favorited, signedIn }: { postId: string
       onClick={toggle}
       disabled={pending}
       aria-pressed={value}
-      className={`inline-flex items-center gap-1 text-sm transition-colors hover:text-accent ${value ? "text-accent" : "text-muted"}`}
+      className={`tap inline-flex items-center gap-1 text-sm transition-colors hover:text-accent ${value ? "text-accent" : "text-muted"}`}
     >
       <BookmarkIcon filled={value} className="size-4" />
       {value ? "已收藏" : "收藏"}

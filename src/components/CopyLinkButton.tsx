@@ -8,7 +8,7 @@ export function CopyLinkButton() {
   return (
     <button
       type="button"
-      className="text-sm text-muted transition-colors hover:text-accent"
+      className="tap text-sm text-muted transition-colors hover:text-accent"
       onClick={async () => {
         try {
           await navigator.clipboard.writeText(window.location.href);

@@ -98,6 +98,9 @@ export function LinkAttach({
       <div className="flex gap-2">
         <input
           className="input"
+          name="link"
+          type="url"
+          autoComplete="off"
           value={url}
           onChange={(event) => setUrl(event.target.value)}
           onKeyDown={(event) => {
@@ -106,7 +109,7 @@ export function LinkAttach({
               void resolve();
             }
           }}
-          placeholder="贴一个 B 站 / YouTube / 网页链接（可选）"
+          placeholder="贴一个视频或网页链接（可选）"
           aria-label="视频或网页链接"
         />
         <button type="button" className="btn shrink-0" disabled={busy || !url.trim()} onClick={() => void resolve()}>

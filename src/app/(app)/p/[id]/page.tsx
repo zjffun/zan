@@ -127,7 +127,7 @@ async function PostPage({ params }: Pick<PageProps<"/p/[id]">, "params">) {
           <span className="ml-auto flex items-center gap-4">
             <CopyLinkButton />
             {isAuthor ? null : (
-              <Link href={`/report?post=${post.id}`} className="text-sm text-muted transition-colors hover:text-danger">
+              <Link href={`/report?post=${post.id}`} className="tap inline-flex items-center text-sm text-muted transition-colors hover:text-danger">
                 举报
               </Link>
             )}

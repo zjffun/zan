@@ -15,7 +15,7 @@ export function HeaderView({ user }: { user: HeaderUser | null | "loading" }) {
   return (
     <header className="border-b border-line bg-paper/90 backdrop-blur">
       <div className="mx-auto flex h-14 max-w-6xl items-center gap-3 px-4">
-        <Link href="/" className="text-lg font-semibold tracking-tight">
+        <Link href="/" className="tap inline-flex items-center text-lg font-semibold tracking-tight">
           zan
         </Link>
 

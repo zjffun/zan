@@ -198,9 +198,10 @@ function Toolbar({ editor, comment }: { editor: EditorInstance; comment: boolean
       aria-pressed={active}
       onMouseDown={(e) => e.preventDefault()} // keep the selection in the editor
       onClick={run}
-      className={`h-7 min-w-7 rounded px-1.5 text-sm ${extra} ${active ? "bg-accent-soft text-accent" : "text-muted hover:bg-sunken"}`}
+      className={`h-8 min-w-8 rounded px-1.5 text-sm pointer-coarse:h-9 pointer-coarse:min-w-9 ${extra} ${active ? "bg-accent-soft text-accent" : "text-muted hover:bg-sunken"}`}
     >
-      {label}
+      {/* the name of the button is its title: the glyph is only a picture of it */}
+      <span aria-hidden="true">{label}</span>
     </button>
   );
 
@@ -232,6 +233,7 @@ function Toolbar({ editor, comment }: { editor: EditorInstance; comment: boolean
           {button("图片", `插入图片（也可以直接粘贴或拖入，最多 ${MAX_POST_IMAGES} 张）`, false, () => fileInput.current?.click(), "text-xs")}
           <input
             ref={fileInput}
+            name="image"
             type="file"
             accept={IMAGE_TYPES.join(",")}
             multiple

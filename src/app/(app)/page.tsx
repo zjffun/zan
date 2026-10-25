@@ -100,10 +100,10 @@ async function Feed({ searchParams }: Pick<PageProps<"/">, "searchParams">) {
           {hotTags.map((tag) => (
             <Link key={tag.id} href={`/t/${tag.slug}`} className="chip shrink-0 hover:!bg-accent-soft hover:!text-accent">
               #{tag.name}
-              {tag.kind ? <span className="opacity-60">{TAG_KIND_LABEL[tag.kind]}</span> : null}
+              {tag.kind ? <span>· {TAG_KIND_LABEL[tag.kind]}</span> : null}
             </Link>
           ))}
-          <Link href="/tags" className="shrink-0 text-xs text-accent underline-offset-2 hover:underline">
+          <Link href="/tags" className="tap inline-flex shrink-0 items-center text-xs text-accent underline-offset-2 hover:underline">
             全部标签 →
           </Link>
         </div>

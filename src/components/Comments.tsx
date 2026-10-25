@@ -78,12 +78,12 @@ export function Comments({
           <RichHtml html={comment.html} onChip={seek} className="comment-body mt-0.5" />
           <p className="mt-1 flex gap-3 text-xs text-muted">
             {comment.parent_id === null ? (
-              <button type="button" className="hover:text-ink" onClick={() => setReplyTo(replyTo === comment.id ? null : comment.id)}>
+              <button type="button" className="tap hover:text-ink" onClick={() => setReplyTo(replyTo === comment.id ? null : comment.id)}>
                 回复
               </button>
             ) : null}
             {canDelete ? (
-              <button type="button" className="hover:text-danger" onClick={() => remove(comment)}>
+              <button type="button" className="tap hover:text-danger" onClick={() => remove(comment)}>
                 删除
               </button>
             ) : null}
