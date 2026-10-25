@@ -44,22 +44,11 @@ export function HeaderView({ user }: { user: HeaderUser | null | "loading" }) {
 
           {user === "loading" ? null : (
             <>
-              <Menu
-                buttonClassName="btn btn-primary btn-sm"
-                label={
-                  <>
-                    <PlusIcon className="size-4" />
-                    新建
-                  </>
-                }
-              >
-                <Link href="/new/post" className={menuItemClass} role="menuitem">
-                  发布内容
-                </Link>
-                <Link href="/new/tag" className={menuItemClass} role="menuitem">
-                  新建标签
-                </Link>
-              </Menu>
+              {/* tags are made where they are used (the tag picker of a post) and on the tags page, not from here */}
+              <Link href="/new/post" className="btn btn-primary btn-sm">
+                <PlusIcon className="size-4" />
+                新建
+              </Link>
 
               {user ? (
                 <Menu

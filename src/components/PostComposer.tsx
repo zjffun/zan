@@ -10,6 +10,7 @@ import { MAX_POST_TAGS } from "@/lib/post-input";
 import type { PostDetailData, Visibility } from "@/lib/types";
 import { NoteEditor, type NoteEditorHandle } from "./editor/NoteEditor";
 import { LinkAttach, type Attached } from "./LinkAttach";
+import { Select } from "./Select";
 import { SourcePlayer } from "./players/SourcePlayer";
 import type { PlayerHandle } from "./players/types";
 import { TagPicker, type TagPick } from "./TagPicker";
@@ -192,14 +193,10 @@ export function PostComposer({ post, presetTags = [] }: { post?: PostDetailData;
       <div className="flex flex-wrap items-center gap-3 border-t border-line pt-4">
         <label className="flex items-center gap-2 text-sm">
           谁能看到
-          <select
-            className="input !w-auto"
-            value={visibility}
-            onChange={(event) => setVisibility(event.target.value as Visibility)}
-          >
+          <Select className="!inline-block" value={visibility} onChange={(event) => setVisibility(event.target.value as Visibility)}>
             <option value="public">所有人</option>
             <option value="private">仅自己可见</option>
-          </select>
+          </Select>
         </label>
         <span className="ml-auto flex gap-2">
           <button type="button" className="btn" onClick={() => router.back()} disabled={saving}>

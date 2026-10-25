@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
+import { PlusIcon } from "@/components/icons";
 import { PostList } from "@/components/PostList";
 import { Pager } from "@/components/Pager";
 import { getCurrentUser } from "@/lib/dal";
@@ -14,8 +15,8 @@ function ComposeBar() {
   return (
     <div className="card flex items-center gap-3 px-4 py-3">
       <Link href="/new/post" className="flex min-w-0 flex-1 items-center gap-3 text-muted hover:text-ink">
-        <span aria-hidden className="flex size-8 shrink-0 items-center justify-center rounded-full bg-accent-soft text-lg text-accent">
-          +
+        <span aria-hidden className="flex size-8 shrink-0 items-center justify-center rounded-full bg-accent-soft text-accent">
+          <PlusIcon className="size-4" />
         </span>
         <span className="truncate text-sm">写点什么，或贴一个视频链接……</span>
       </Link>

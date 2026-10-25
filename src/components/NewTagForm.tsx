@@ -8,6 +8,7 @@ import { TAG_KINDS, TAG_KIND_LABEL, type TagKind } from "@/lib/types";
 import { useResetOnHide } from "@/lib/use-reset-on-hide";
 import type { WorkCandidate } from "@/lib/works/types";
 import { Cover } from "./Cover";
+import { Select } from "./Select";
 
 const ORIGIN_LABEL = { bangumi: "Bangumi", openlibrary: "Open Library" } as const;
 
@@ -183,14 +184,14 @@ function ManualForm({
         </label>
         <label className="text-sm font-medium">
           类型（可选）
-          <select className="input mt-1" value={kind} onChange={(event) => setKind(event.target.value as TagKind | "")}>
+          <Select className="mt-1" value={kind} onChange={(event) => setKind(event.target.value as TagKind | "")}>
             <option value="">话题</option>
             {TAG_KINDS.map((k) => (
               <option key={k} value={k}>
                 {TAG_KIND_LABEL[k]}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
         <label className="text-sm font-medium sm:col-span-2">
           介绍（可选）

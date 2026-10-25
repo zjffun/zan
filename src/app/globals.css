@@ -139,6 +139,12 @@ body {
   color: var(--muted);
   opacity: 0.8;
 }
+/* a dropdown draws its own arrow (see components/Select.tsx), with room for it */
+select.input {
+  appearance: none;
+  padding-right: 2.25rem;
+  cursor: pointer;
+}
 
 .card {
   border: 1px solid var(--line);
@@ -162,8 +168,9 @@ body {
 /* ---- anchor chips: the clickable 12:34 labels in notes ------------------- */
 
 .anchor-chip {
-  display: inline-flex;
-  align-items: center;
+  /* a plain inline box, so that its baseline is the baseline of its digits and it lines up with the text
+     around it (an inline-flex box takes its baseline from its first item, here the play mark) */
+  display: inline-block;
   padding: 0 0.45rem;
   margin: 0 0.1rem;
   border: 0;
@@ -176,7 +183,9 @@ body {
   font-variant-numeric: tabular-nums;
   line-height: 1.5;
   cursor: pointer;
-  vertical-align: baseline;
+  /* the label is set smaller than the text around it, so on the same baseline its middle sits a little
+     low: lift it by that difference */
+  vertical-align: 0.06em;
 }
 .anchor-chip:hover {
   filter: brightness(0.95);
@@ -186,9 +195,14 @@ body {
   cursor: pointer;
 }
 .anchor-chip--seek::before {
-  content: "\25B6\FE0E";
-  margin-right: 0.3em;
-  font-size: 0.6em;
+  content: "";
+  display: inline-block;
+  margin-right: 0.4em;
+  /* a triangle pointing right, as tall as the digits are wide */
+  border-style: solid;
+  border-width: 0.3em 0 0.3em 0.5em;
+  border-color: transparent transparent transparent currentColor;
+  vertical-align: 0.04em;
 }
 /* A label that only says where: grey, no hover, nothing to click. */
 .anchor-chip--static {
