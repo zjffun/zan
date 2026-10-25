@@ -112,7 +112,7 @@ async function readBody(req) {
 
 async function auth(req, res, url) {
   const route = url.pathname.replace(/^\/auth\/v1/, "");
-  const body = req.method === "POST" ? JSON.parse((await readBody(req)).toString() || "{}") : {};
+  const body = ["POST", "PUT", "DELETE"].includes(req.method) ? JSON.parse((await readBody(req)).toString() || "{}") : {};
 
   if (route === "/signup" && req.method === "POST") {
     const email = String(body.email ?? "").toLowerCase();
@@ -147,6 +147,42 @@ async function auth(req, res, url) {
     const claims = verify((req.headers.authorization ?? "").replace(/^Bearer /i, ""));
     const user = claims && [...users.values()].find((u) => u.id === claims.sub);
     return user ? json(res, 200, userRow(user)) : gotrueError(res, 401, "bad_jwt", "invalid JWT");
+  }
+
+  // change the e-mail address or the password of the signed-in user (no confirmation mail here: it is applied at once)
+  if (route === "/user" && req.method === "PUT") {
+    const claims = verify((req.headers.authorization ?? "").replace(/^Bearer /i, ""));
+    const user = claims && [...users.values()].find((u) => u.id === claims.sub);
+    if (!user) return gotrueError(res, 401, "bad_jwt", "invalid JWT");
+    if (body.password !== undefined) {
+      if (String(body.password).length < 6) return gotrueError(res, 422, "weak_password", "Password should be at least 6 characters");
+      if (body.password === user.password) return gotrueError(res, 422, "same_password", "New password should be different from the old password.");
+      user.password = String(body.password);
+    }
+    if (body.email !== undefined) {
+      const email = String(body.email).toLowerCase();
+      if (users.has(email)) return gotrueError(res, 422, "email_exists", "A user with this email address has already been registered");
+      users.delete(user.email);
+      user.email = email;
+      users.set(email, user);
+      execFileSync("psql", [DB_URL, "-X", "-q", "-v", "ON_ERROR_STOP=1", "-v", `id=${user.id}`, "-v", `email=${email}`], {
+        input: "update auth.users set email = :'email' where id = :'id';",
+      });
+    }
+    return json(res, 200, userRow(user));
+  }
+
+  // delete an account (service role only); the schema's foreign keys remove everything that belongs to it
+  const removal = /^\/admin\/users\/([0-9a-f-]{36})$/.exec(route);
+  if (removal && req.method === "DELETE") {
+    const claims = verify((req.headers.authorization ?? "").replace(/^Bearer /i, ""));
+    if (claims?.role !== "service_role") return gotrueError(res, 403, "not_admin", "User not allowed");
+    const user = [...users.values()].find((u) => u.id === removal[1]);
+    if (user) users.delete(user.email);
+    execFileSync("psql", [DB_URL, "-X", "-q", "-v", "ON_ERROR_STOP=1", "-v", `id=${removal[1]}`], {
+      input: "delete from auth.users where id = :'id';",
+    });
+    return json(res, 200, {});
   }
 
   if (route === "/logout") {
@@ -196,6 +232,17 @@ async function storage(req, res, url) {
     return res.end(req.method === "HEAD" ? undefined : fs.readFileSync(file));
   }
 
+  // list a folder of a bucket: POST /object/list/<bucket> {prefix, limit}
+  if (req.method === "POST" && rest.startsWith("list/")) {
+    const claims = verify((req.headers.authorization ?? "").replace(/^Bearer /i, ""));
+    if (claims?.role !== "service_role") return storageError(403, "Unauthorized", "not allowed");
+    const body = JSON.parse((await readBody(req)).toString() || "{}");
+    const folder = path.resolve(STORAGE_DIR, rest.slice("list/".length), String(body.prefix ?? ""));
+    if (!folder.startsWith(STORAGE_DIR + path.sep) || !fs.existsSync(folder)) return json(res, 200, []);
+    const names = fs.readdirSync(folder).filter((name) => !name.endsWith(".meta.json") && fs.statSync(path.join(folder, name)).isFile());
+    return json(res, 200, names.slice(Number(body.offset ?? 0), Number(body.offset ?? 0) + Number(body.limit ?? 100)).map((name) => ({ name, id: name })));
+  }
+
   if ((req.method === "POST" || req.method === "PUT") && !rest.startsWith("public/")) {
     const claims = verify((req.headers.authorization ?? "").replace(/^Bearer /i, ""));
     if (claims?.role !== "service_role") {
@@ -212,6 +259,24 @@ async function storage(req, res, url) {
       JSON.stringify({ contentType: req.headers["content-type"] ?? "application/octet-stream", cacheControl: req.headers["cache-control"] ?? "max-age=3600" }),
     );
     return json(res, 200, { Id: crypto.randomUUID(), Key: rest });
+  }
+
+  // remove files: DELETE /object/<bucket> {prefixes: ["<key>", ...]}
+  if (req.method === "DELETE" && !rest.startsWith("public/")) {
+    const claims = verify((req.headers.authorization ?? "").replace(/^Bearer /i, ""));
+    if (claims?.role !== "service_role") return storageError(403, "Unauthorized", "not allowed");
+    const body = JSON.parse((await readBody(req)).toString() || "{}");
+    const bucket = rest.replace(/\/$/, "");
+    const removed = [];
+    for (const key of body.prefixes ?? []) {
+      const file = storagePath(`${bucket}/${key}`);
+      if (file && fs.existsSync(file)) {
+        fs.rmSync(file);
+        fs.rmSync(`${file}.meta.json`, { force: true });
+        removed.push({ name: key });
+      }
+    }
+    return json(res, 200, removed);
   }
 
   return storageError(404, "not_found", `${req.method} ${url.pathname} is not implemented by the dev gateway`);

@@ -21,6 +21,17 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
   return { id: claims.sub, email: typeof claims.email === "string" ? claims.email : null };
 }
 
+/**
+ * The address the signed-in account has now. The session's token carries the one it had when it was
+ * issued, which can be an hour old: after a change of address this asks the server.
+ */
+export async function getCurrentEmail(): Promise<string | null> {
+  if (!supabaseConfig()) return null;
+  const supabase = await createClient();
+  const { data } = await supabase.auth.getUser();
+  return data.user?.email ?? null;
+}
+
 export async function requireUser(next = "/"): Promise<CurrentUser> {
   const user = await getCurrentUser();
   if (!user) redirect(`/login?next=${encodeURIComponent(next)}`);

@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import { AccountSettings } from "@/components/AccountSettings";
 import { ProfileForm } from "@/components/ProfileForm";
-import { getCurrentProfile, requireUser } from "@/lib/dal";
+import { getCurrentEmail, getCurrentProfile, requireUser } from "@/lib/dal";
 
 export const metadata: Metadata = { title: "设置", robots: { index: false, follow: false } };
 
@@ -9,7 +10,12 @@ async function Settings() {
   await requireUser("/settings");
   const profile = await getCurrentProfile();
   if (!profile) return <p className="mt-6 text-sm text-muted">找不到你的资料，请重新登录。</p>;
-  return <ProfileForm nickname={profile.nickname} bio={profile.bio} />;
+  return (
+    <>
+      <ProfileForm nickname={profile.nickname} bio={profile.bio} />
+      <AccountSettings email={await getCurrentEmail()} />
+    </>
+  );
 }
 
 export default function SettingsPage() {

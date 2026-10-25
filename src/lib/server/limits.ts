@@ -28,6 +28,9 @@ export const LIMITS = {
   comment: { key: "comment", limit: 20, windowMs: tenMinutes },
   commentDelete: { key: "comment-delete", limit: 60, windowMs: tenMinutes },
   profileEdit: { key: "profile", limit: 10, windowMs: tenMinutes },
+  /** the e-mail address and the password: sends mail, and is what somebody who got hold of a session would do first */
+  accountChange: { key: "account", limit: 5, windowMs: tenMinutes },
+  accountDelete: { key: "account-delete", limit: 3, windowMs: day },
   /** tags are shared and permanent: one allowance for the tag form, the work search's "create" and tags typed into a post */
   tagCreate: { key: "tag", limit: 20, windowMs: tenMinutes },
   uploadBurst: { key: "upload-min", limit: 12, windowMs: minute },

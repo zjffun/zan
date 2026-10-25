@@ -1410,3 +1410,37 @@ select t.raises($$ update public.profiles set nickname = E'　' where id = '0000
 select t.raises($$ update public.profiles set nickname = E'阿木　' where id = '00000000-0000-0000-0000-00000000000b' $$,
   'a nickname must not end in an ideographic space', '23514');
 rollback;
+
+-- ---------------------------------------------------------------------------
+-- leaving: deleting the account (the application deletes the auth user) takes with it everything that is theirs
+-- ---------------------------------------------------------------------------
+begin;
+insert into public.likes (post_id, user_id) values ('60000000-0000-0000-0000-0000000000a1', :B);
+insert into public.favorites (post_id, user_id) values ('60000000-0000-0000-0000-0000000000a1', :B);
+select t.ok((select count(*) from public.posts where author = :B) > 0
+        and (select count(*) from public.comments where author = :B) > 0
+        and (select count(*) from public.tag_follows where user_id = :B) > 0
+        and (select count(*) from public.tags where created_by = :B) > 0,
+  'fixtures: B has posts, comments, follows and a tag of their own');
+select t.ok((select comment_count from public.posts where id = '60000000-0000-0000-0000-0000000000a1') = 2
+        and (select like_count from public.posts where id = '60000000-0000-0000-0000-0000000000a1') >= 1, 'fixtures: and their comment and like are counted on A''s post');
+select count(*) as tags_before from public.tags \gset
+
+delete from auth.users where id = :B;
+
+select t.ok(not exists (select 1 from public.profiles where id = :B), 'the profile is gone');
+select t.ok(not exists (select 1 from public.posts where author = :B), 'and the posts');
+select t.ok(not exists (select 1 from public.post_tags where post_id in ('60000000-0000-0000-0000-0000000000b1', '60000000-0000-0000-0000-0000000000b2')), 'and what tagged them');
+select t.ok(not exists (select 1 from public.comments where author = :B), 'and the comments');
+select t.ok(not exists (select 1 from public.comments where id = '70000000-0000-0000-0000-000000000002'),
+  'and the replies under those comments, which were somebody else''s');
+select t.ok(not exists (select 1 from public.likes where user_id = :B)
+        and not exists (select 1 from public.favorites where user_id = :B)
+        and not exists (select 1 from public.tag_follows where user_id = :B), 'and the likes, bookmarks and follows');
+select t.ok((select comment_count from public.posts where id = '60000000-0000-0000-0000-0000000000a1') = 0
+        and (select like_count from public.posts where id = '60000000-0000-0000-0000-0000000000a1') = 0,
+  'the counters of other people''s posts go back down');
+select t.ok((select count(*) from public.tags) = :tags_before and not exists (select 1 from public.tags where created_by = :B),
+  'the tags they made stay, for everybody who used them, with nobody as their maker');
+select t.ok((select count(*) from public.posts where author = :A) = 3, 'other people''s posts are untouched');
+rollback;
