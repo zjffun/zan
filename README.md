@@ -12,6 +12,7 @@ zan 是“攒”：一个“只存引用，不存内容”的内容社区，看�
 - **新建分两类**
   - **发布内容**：写文字（支持加粗、列表、链接等），可以贴 **YouTube** / **B 站**（含分 P、`?t=`、`b23.tv` 短链）或任意网页链接，带上位置（视频时间、集数、页码）和一句自己摘的短句；挂 0–5 个标签，选已有的，或现场新建；可见范围是“所有人”或“仅自己可见”（私人草稿）
   - **新建标签**：从 **Bangumi**（动画、书、漫画、游戏、真人剧）或 **Open Library**（书，可按 ISBN）搜一部作品，名字、封面和类型自动带上；或者手动建一个话题标签
+- **图片**：在编辑器里直接 `Cmd/Ctrl + V` 粘贴截图或复制的图片，或把图片文件拖进来，或点工具栏的“图片”选文件；每条内容最多 9 张，不支持外链图片（Markdown 里写 `![](https://…)` 不会变成图片）
 - **位置标签**：编辑器里输入 `@12:34`、`p.132`、`E5@12:34` 加空格，自动变成可点击的标签
   - YouTube：`Alt+T` 或“记录当前时间”，把播放器当前时间插进内容；点击时间标签，播放器跳转
   - B 站：粘贴带 `?t=` 的链接，或手打 `12:34`；点击时间标签时带新的 `t` 重新加载播放器
@@ -37,10 +38,11 @@ zan 是“攒”：一个“只存引用，不存内容”的内容社区，看�
 Next.js 服务端（Server Actions / Route Handlers）
  ├─ 链接解析、元数据抓取 ──► YouTube oEmbed / B 站视频信息接口
  ├─ 作品检索 ────────────► Bangumi API / Open Library
+ ├─ 图片上传（/api/upload） ► Supabase Storage（公开桶 post-images；读取走 /media/…）
  └─ 内容、标签、评论、点赞等写入，分享图，Markdown 导出
           │
           ▼
-Supabase（Postgres + 登录 + 行级权限 RLS + 可选 PGroonga）
+Supabase（Postgres + 登录 + 行级权限 RLS + Storage + 可选 PGroonga）
 ```
 
 所有对 Supabase 的访问都发生在服务端（浏览器里没有 Supabase 客户端），登录会话放在 cookie 里。
@@ -50,6 +52,7 @@ Supabase（Postgres + 登录 + 行级权限 RLS + 可选 PGroonga）
 | 前后端 | Next.js 16（App Router，Cache Components）+ TypeScript + Tailwind CSS 4 |
 | 数据库与登录 | Supabase：Postgres + Auth + RLS |
 | 编辑器 | TipTap 3（自定义“位置标签”节点），内容存成 JSON |
+| 图片 | Supabase Storage（公开桶），浏览器端先缩小再上传 |
 | 分享图 | `next/og`（即 `@vercel/og`） |
 | 测试 | Vitest（单元）+ 纯 SQL 测试（schema 与 RLS） |
 
@@ -72,7 +75,7 @@ npm run dev      # http://localhost:3000
 
 ### 不用 Supabase 账号在本地跑
 
-[`scripts/dev/local-stack.sh`](scripts/dev/local-stack.sh) 用你本机的 PostgreSQL + [PostgREST](https://postgrest.org) + 一个几十行的登录网关，复刻 Supabase 的 `/rest/v1` 和 `/auth/v1`，不需要 Docker：
+[`scripts/dev/local-stack.sh`](scripts/dev/local-stack.sh) 用你本机的 PostgreSQL + [PostgREST](https://postgrest.org) + 一个几十行的登录网关，复刻 Supabase 的 `/rest/v1`、`/auth/v1` 和最简版的 `/storage/v1/object`（上传的图片存成 `.dev/storage/` 下的普通文件，已被 git 忽略），不需要 Docker：
 
 ```bash
 brew install postgresql@16 postgrest      # 或从 github.com/PostgREST/postgrest 下载发行版二进制
@@ -91,7 +94,7 @@ scripts/dev/local-stack.sh                # 建库、跑迁移，并打印要写
 
 | 变量 | 作用 |
 | --- | --- |
-| `SUPABASE_SERVICE_ROLE_KEY` | 仅失效检测定时任务和下架接口使用，绕过 RLS，务必只放服务端 |
+| `SUPABASE_SERVICE_ROLE_KEY` | 失效检测定时任务、下架接口和图片上传使用，绕过 RLS，务必只放服务端 |
 | `SITE_URL` | 站点地址（sitemap、分享图、邮件链接） |
 | `REPORT_EMAIL` | “举报”发往的邮箱 |
 | `BANGUMI_ACCESS_TOKEN`、`ZAN_USER_AGENT` | Bangumi 要求带 User-Agent，也提供 Access Token |
@@ -127,6 +130,16 @@ npm run lint && npm run typecheck && npm run build
 - 点赞、收藏、关注是你自己的行，只有你读得到；点赞数和评论数记在内容上，标签的内容数和关注数由 `list_tags()`、`get_tag()` 这两个只返回聚合数字的 `security definer` 函数给出，所以对所有人含义一致（只统计公开内容）
 - 空白检查用 `trim_blanks()`，它认得全角空格、不换行空格和零宽字符，不只是 ASCII 空格；“最多 5 个标签”用咨询锁串行化，并发插入也绕不过去
 
+**图片**（[`0006_post_images.sql`](supabase/migrations/0006_post_images.sql)）
+
+- **内容里只存“钥匙”，不存地址**：图片节点是 `{ key: "<作者 id>/<随机 id>.webp" }`（[`src/lib/image.ts`](src/lib/image.ts)），清洗时只认这种格式，所以内容没法指向别人的服务器：没有盗链、追踪像素和 `data:` 图片，换环境也不用改内容。页面里的地址是 `/media/<钥匙>`，[`next.config.ts`](next.config.ts) 把它改写到存储桶的公开地址，所以 CSP 的 `img-src` 仍然只有 `'self'` 和几个已知图床，页面里也不会出现 Supabase 的地址
+- **上传流程**：粘贴 / 拖入 / 选文件后，浏览器先把图缩到长边 1600 px 并转成 WebP（不支持 WebP 的浏览器用 JPEG），重画一遍也去掉了照片里的 EXIF（含 GPS 位置）；GIF 原样上传（≤ 3 MB），免得动画被压成静态。再 `POST /api/upload`：要求已登录和同源，按用户限次（每分钟 12 张、每天 60 张），不信任浏览器给的类型，按文件头判断是 PNG / JPEG / WebP / GIF 并读出尺寸（SVG、HTML 等一律拒绝），≤ 3 MB、长边 ≤ 4096，然后用 service role 写进存储桶，钥匙由服务端生成，放在上传者自己的 id 下
+- **只有服务端能写**：存储桶没有任何 insert 策略，登录用户拿自己的令牌直接调 Storage 也写不进去，绕不过上面的检查；桶本身也限制了类型和 3 MB
+- **发布时再查一遍**（`preparePost`）：每条最多 9 张，且图片必须是发布者自己上传的；只有图片、没有文字的内容，搜索文本记为 `[图片]`（数据库要求内容至少有文字、视频或位置之一，卡片上也不至于空白）
+- **私密内容的图片**：桶是公开的，图片地址里有随机 id，不可猜但知道链接的人都能看，和私密内容本身的“仅自己可见”不是一个强度
+- **导出 Markdown**：图片写成 `![](https://你的站点/media/…)`；文件名不会重复，所以响应带一年的缓存头
+- **还没做**：删掉内容或编辑时去掉图片，存储桶里的文件不会被清理（免费档 1 GB，大约两千张）；信息流卡片还不显示图片（可以用第一张当封面）；图片没有填写说明文字的界面（`alt` 字段已支持）
+
 **防 XSS**
 
 内容没有任何“原始 HTML”节点。写入时服务端用白名单（`src/lib/doc/schema.ts`）清洗 TipTap JSON：只保留已知节点、标记和属性，链接只允许 `http(s)` / `mailto`；渲染用同一套白名单从 JSON 生成转义过的 HTML。评论是纯文本，渲染时由 React 转义。
@@ -154,7 +167,8 @@ npm run lint && npm run typecheck && npm run build
 - **Vercel**：导入仓库，设置上面的环境变量即可；[`vercel.json`](vercel.json) 里配置了每天一次的失效检测。注意 Vercel 免费档只允许非商业用途
 - **从本机用命令行部署**（不需要先把 GitHub 仓库连到 Vercel）：`npx vercel login`，`npx vercel link --project <名字>`，用 `printf %s "$值" | npx vercel env add 名字 -e production --sensitive` 逐个写入环境变量，再 `npx vercel deploy --prod`。[`vercel.json`](vercel.json) 把函数放在东京（`hnd1`），和 Supabase 的东京区域同区；换了数据库区域，这里也要改
 - **`package-lock.json` 里的下载地址必须是公网源**：锁文件里的 `resolved` 如果指向 Vercel 访问不到的地址，`npm install` 会直接失败。用 `npm install --registry=https://registry.npmjs.org/` 重新生成；`npm test` 里的 `tests/package-lock.test.ts` 会检查每一项都来自 `registry.npmjs.org`
-- **Supabase** 免费项目长时间不活跃会被暂停；有稳定用户后再升级
+- **上线带图片功能的版本前**，先在 Supabase 的 SQL 编辑器里运行 [`0006_post_images.sql`](supabase/migrations/0006_post_images.sql) 建存储桶 `post-images`（可重复运行）；环境变量不用加。`/media/…` 的改写在构建时读 `SUPABASE_URL`，所以这个变量要在 Vercel 的构建环境里也有。Vercel 函数的请求体上限是 4.5 MB，所以上传限制在 3 MB 以内，靠浏览器先缩小
+- **Supabase** 免费项目长时间不活跃会被暂停；有稳定用户后再升级。免费档存储 1 GB、单文件最大 50 MB
 - 限流和对外部网站的查询缓存：无服务器环境下建议配 Upstash Redis（环境变量见上），不配也能跑，但各实例各算各的，限额形同虚设，B 站更容易把我们拦掉
 - **登录 cookie**：HttpOnly（页面脚本读不到，浏览器里本来也没有 Supabase 客户端用它），SameSite=Lax，保存 30 天，每次令牌刷新（活跃时最多每小时一次）都会重新写成再 30 天，所以是“连续 30 天不来才掉线”，不是每 30 天登录一次；生产环境（`NODE_ENV=production`）一律加 Secure，所以必须走 https：用 `next start` 在非 localhost 的 http 地址上访问会存不住登录；开发环境（`npm run dev`）跟着请求走，http 的 localhost / 局域网不加 Secure（Safari 和非 localhost 地址会拒收 Secure cookie），经代理的 https 请求看 `x-forwarded-proto`。访问令牌 1 小时过期，刷新令牌默认不过期，想限制“多久不用就掉线”可以在 Supabase 后台设置会话超时
 
@@ -169,7 +183,8 @@ npm run lint && npm run typecheck && npm run build
 - B 站播放器读不到当前时间：只能手输或粘贴带 `?t=` 的链接；以后的浏览器插件可以直接读页面里 `video` 元素的 `currentTime`
 - B 站接口是非官方的，随时可能变化
 - 标签没有审核，也不能改名、合并或删除（只能由运营者在数据库里处理）；任何登录用户都可以新建标签
-- 评论只有一层回复，不能编辑；没有举报评论的入口，也没有通知
+- 评论只有一层回复，不能编辑，也不能贴图；没有举报评论的入口，也没有通知
+- 图片没有配额和回收：每个用户每天最多传 60 张，但不会清理不再被引用的图片；下架一条内容只是隐藏它，图片文件仍在存储桶里
 - 每个用户的内容 / 标签 / 评论数量没有配额，只有每个用户的操作频率限制（配了 Redis 才跨实例生效，见“限流与查询缓存”）
 
 ## 许可

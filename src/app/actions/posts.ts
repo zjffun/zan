@@ -37,10 +37,10 @@ function columns(prepared: PreparedPost) {
 
 /** Publishes a post. Everything in `input` is untrusted: it is checked and cleaned by preparePost. */
 export async function createPost(input: unknown): Promise<ActionResult<{ id: string }>> {
-  const prepared = preparePost(input);
-  if (!prepared.ok) return prepared;
   const user = await getCurrentUser();
   if (!user) return fail("请先登录。");
+  const prepared = preparePost(input, user.id);
+  if (!prepared.ok) return prepared;
   const limited = await rateLimit(`post:${user.id}`, 20, 10 * 60_000);
   if (!limited.ok) return fail(`发布太频繁，请 ${limited.retryAfter} 秒后再试。`);
 
@@ -67,10 +67,10 @@ export async function createPost(input: unknown): Promise<ActionResult<{ id: str
 /** Saves changes to one of your posts, including its tags. */
 export async function updatePost(postId: string, input: unknown): Promise<ActionResult<{ id: string }>> {
   if (!isUuid(postId)) return fail("参数无效。");
-  const prepared = preparePost(input);
-  if (!prepared.ok) return prepared;
   const user = await getCurrentUser();
   if (!user) return fail("请先登录。");
+  const prepared = preparePost(input, user.id);
+  if (!prepared.ok) return prepared;
   const limited = await rateLimit(`post:${user.id}`, 60, 10 * 60_000);
   if (!limited.ok) return fail(`保存太频繁，请 ${limited.retryAfter} 秒后再试。`);
 

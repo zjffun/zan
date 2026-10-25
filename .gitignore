@@ -40,3 +40,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local dev stack: uploaded images (scripts/dev/mock-supabase.mjs)
+/.dev/

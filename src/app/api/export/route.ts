@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { getCurrentUser } from "@/lib/dal";
 import { exportPostsMarkdown, type ExportPost } from "@/lib/export/markdown";
 import { createClient } from "@/lib/supabase/server";
@@ -8,7 +8,7 @@ interface Row extends Omit<ExportPost, "tags"> {
 }
 
 /** Everything the signed-in user has posted, as one Markdown file: you can always take your data away. */
-export async function GET() {
+export async function GET(request: NextRequest) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
@@ -28,6 +28,7 @@ export async function GET() {
       tags: (post_tags ?? []).flatMap((row) => (row.tag ? [row.tag] : [])),
     })),
     exportedAt: today,
+    origin: request.nextUrl.origin,
   });
   return new NextResponse(markdown, {
     headers: {

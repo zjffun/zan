@@ -1,13 +1,17 @@
 import { z } from "zod";
 import { anchorSchema, MAX_QUOTE_LENGTH, type Anchor } from "./anchor";
+import { collectImages } from "./doc/images";
 import { DocError, sanitizeDoc, type DocNode } from "./doc/schema";
 import { docToPlainText } from "./doc/text";
+import { MAX_POST_IMAGES, parseImageKey } from "./image";
 import { parseSourceInput } from "./sources";
 import { normalizeTagName, tagKey } from "./tag-name";
 import type { PostSource, Visibility } from "./types";
 
 export const MAX_POST_TAGS = 5;
 export const MAX_PLAIN_TEXT = 20_000;
+/** The searchable text of a post that is only pictures (the database wants a post to have some text, a video or a position). */
+export const IMAGE_ONLY_TEXT = "[图片]";
 
 /** What the composer sends; everything in it is untrusted. */
 export const postInputSchema = z.object({
@@ -38,8 +42,11 @@ export type PrepareResult = { ok: true; value: PreparedPost } | { ok: false; err
 
 const fail = (error: string): PrepareResult => ({ ok: false, error });
 
-/** Checks and cleans a post before it is written. The same rules apply to creating and to editing. */
-export function preparePost(raw: unknown): PrepareResult {
+/**
+ * Checks and cleans a post before it is written. The same rules apply to creating and to editing.
+ * `author` is the signed-in user: a post may only contain pictures that this user uploaded.
+ */
+export function preparePost(raw: unknown, author: string): PrepareResult {
   const parsed = postInputSchema.safeParse(raw);
   if (!parsed.success) {
     const issue = parsed.error.issues[0];
@@ -64,14 +71,19 @@ export function preparePost(raw: unknown): PrepareResult {
     }
   }
 
+  const images = collectImages(body);
+  if (images.length > MAX_POST_IMAGES) return fail(`每条内容最多 ${MAX_POST_IMAGES} 张图片。`);
+  if (images.some((image) => parseImageKey(image.key)?.owner !== author)) return fail("图片无效，请重新上传。");
+
   const anchor = input.anchor;
   if (anchor?.quote && Array.from(anchor.quote).length > MAX_QUOTE_LENGTH) {
     return fail(`摘录最多 ${MAX_QUOTE_LENGTH} 字：只记引用，不转载。`);
   }
 
   // The quote is searchable too, so it counts toward the size limit.
-  const text = [docToPlainText(body), anchor?.quote].filter(Boolean).join("\n");
-  if (!text && !source && !anchor) return fail("先写点什么，或者贴一个链接。");
+  const written = [docToPlainText(body), anchor?.quote].filter(Boolean).join("\n");
+  if (!written && !source && !anchor && images.length === 0) return fail("先写点什么，或者贴一个链接。");
+  const text = written || (images.length > 0 ? IMAGE_ONLY_TEXT : "");
   if (Array.from(text).length > MAX_PLAIN_TEXT) return fail("内容太长了（最多 2 万字）。");
 
   const names: string[] = [];

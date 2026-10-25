@@ -1,6 +1,7 @@
 import { anchorLabel, type Anchor } from "../anchor";
 import { docToMarkdown, escapeMarkdown } from "../doc/markdown";
 import { excerptOf } from "../feed";
+import { mediaPath } from "../image";
 import { PROVIDER_LABEL, anchorUrl, sourceTitle, sourceUrl } from "../sources";
 import { formatTimestamp } from "../time";
 import type { PostSource, Visibility } from "../types";
@@ -20,6 +21,8 @@ export interface ExportInput {
   posts: ExportPost[];
   /** ISO date shown in the footer; injected so output is deterministic in tests. */
   exportedAt?: string;
+  /** The site's origin (https://example.com): lets images in the file point at the site, not at a relative path. */
+  origin?: string;
 }
 
 function describeSource(source: PostSource, dead: boolean): string {
@@ -32,7 +35,7 @@ function describeSource(source: PostSource, dead: boolean): string {
   return `${url ? `[${title}](${url})` : title} — ${bits.join(" · ")}`;
 }
 
-function renderPost(post: ExportPost): string {
+function renderPost(post: ExportPost, origin: string): string {
   const heading = post.source ? sourceTitle(post.source) : excerptOf(post.plain_text, 30) || "（无标题）";
   const lines: string[] = [`## ${escapeMarkdown(heading)}`, ""];
 
@@ -55,7 +58,10 @@ function renderPost(post: ExportPost): string {
     }
   }
 
-  const body = docToMarkdown(post.body, { chipHref: (chip) => anchorUrl(post.source, chip) });
+  const body = docToMarkdown(post.body, {
+    chipHref: (chip) => anchorUrl(post.source, chip),
+    imageHref: (key) => `${origin}${mediaPath(key)}`,
+  });
   if (body) lines.push(body, "");
   return lines.join("\n");
 }
@@ -68,7 +74,8 @@ function renderPost(post: ExportPost): string {
  */
 export function exportPostsMarkdown(input: ExportInput): string {
   const lines: string[] = ["# 我在 zan 攒下的内容", ""];
-  for (const post of input.posts) lines.push(renderPost(post));
+  const origin = (input.origin ?? "").replace(/\/+$/, "");
+  for (const post of input.posts) lines.push(renderPost(post, origin));
   if (input.exportedAt) lines.push("---", "", `导出自 zan · ${input.exportedAt}`, "");
   return lines.join("\n").replace(/\n{3,}/g, "\n\n").trimEnd() + "\n";
 }

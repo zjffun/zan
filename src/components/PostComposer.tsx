@@ -65,6 +65,7 @@ export function PostComposer({ post, presetTags = [] }: { post?: PostDetailData;
   const [moreOpen, setMoreOpen] = useState(Boolean(initial?.anchorText || initial?.quote));
   const [startAt, setStartAt] = useState<number | undefined>(undefined);
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   const provider = attached?.source.provider;
@@ -109,6 +110,10 @@ export function PostComposer({ post, presetTags = [] }: { post?: PostDetailData;
   async function submit() {
     if (saving) return;
     setError(null);
+    if (uploading > 0) {
+      setError("图片还在上传，等一下再发布。");
+      return;
+    }
 
     const trimmed = anchorText.trim();
     const parsed = trimmed ? parseAnchorText(trimmed) : null;
@@ -192,6 +197,7 @@ export function PostComposer({ post, presetTags = [] }: { post?: PostDetailData;
         onChipClick={seek}
         onTimeShortcut={recordTime}
         onSubmit={submit}
+        onUploadingChange={setUploading}
       />
 
       <LinkAttach value={attached} onChange={setAttached} onAttached={linkAttached} />
@@ -273,8 +279,8 @@ export function PostComposer({ post, presetTags = [] }: { post?: PostDetailData;
           <button type="button" className="btn" onClick={() => router.back()} disabled={saving}>
             取消
           </button>
-          <button type="button" className="btn btn-primary" onClick={submit} disabled={saving} title="Cmd/Ctrl + Enter">
-            {saving ? "发布中…" : post ? "保存修改" : "发布"}
+          <button type="button" className="btn btn-primary" onClick={submit} disabled={saving || uploading > 0} title="Cmd/Ctrl + Enter">
+            {saving ? "发布中…" : uploading > 0 ? "图片上传中…" : post ? "保存修改" : "发布"}
           </button>
         </span>
       </div>

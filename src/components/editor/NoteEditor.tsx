@@ -10,7 +10,10 @@ import StarterKit from "@tiptap/starter-kit";
 import { useEffect, useImperativeHandle, useMemo, useRef, useState, type Ref } from "react";
 import { EMPTY_DOC, sanitizeDocOrEmpty, safeHref, type ChipAttrs, type DocNode } from "@/lib/doc/schema";
 import { chipFromElement } from "@/lib/doc/chip-dom";
+import { IMAGE_TYPES, MAX_POST_IMAGES } from "@/lib/image";
 import { AnchorChip } from "./anchor-chip";
+import { ImageUpload } from "./image-upload";
+import { PostImage } from "./post-image";
 
 export interface NoteEditorHandle {
   insertChip(attrs: ChipAttrs): void;
@@ -32,6 +35,8 @@ export interface NoteEditorProps {
   onTimeShortcut?: () => void;
   /** Cmd/Ctrl+Enter */
   onSubmit?: () => void;
+  /** How many pictures are still uploading; the note must not be saved while it is above 0. */
+  onUploadingChange?: (running: number) => void;
 }
 
 /**
@@ -47,6 +52,7 @@ export function NoteEditor({ ref, ...props }: NoteEditorProps) {
   });
 
   const initial = useMemo(() => sanitizeDocOrEmpty(props.initial ?? EMPTY_DOC), [props.initial]);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -60,6 +66,11 @@ export function NoteEditor({ ref, ...props }: NoteEditorProps) {
       }),
       Placeholder.configure({ placeholder: props.placeholder ?? "写点什么… 输入 @12:34 或 p.132 加空格，会变成可点击的位置标签" }),
       AnchorChip.configure({ onTimeShortcut: () => latest.current.onTimeShortcut?.() }),
+      PostImage,
+      ImageUpload.configure({
+        onBusyChange: (running) => latest.current.onUploadingChange?.(running),
+        onError: (message) => setNotice(message),
+      }),
     ],
     editorProps: {
       attributes: { class: "note-body ProseMirror px-3 py-2", "aria-label": "内容", role: "textbox", "aria-multiline": "true" },
@@ -125,6 +136,14 @@ export function NoteEditor({ ref, ...props }: NoteEditorProps) {
     <div className="rounded-lg border border-line bg-surface focus-within:border-accent">
       {editor ? <Toolbar editor={editor} /> : <div className="h-9 border-b border-line" />}
       <EditorContent editor={editor} />
+      {notice ? (
+        <p role="alert" className="flex items-start gap-2 border-t border-line px-3 py-1.5 text-xs text-danger">
+          <span className="min-w-0 flex-1">{notice}</span>
+          <button type="button" className="shrink-0 underline underline-offset-2" onClick={() => setNotice(null)}>
+            知道了
+          </button>
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -148,6 +167,7 @@ function Toolbar({ editor }: { editor: EditorInstance }) {
   });
   const [linking, setLinking] = useState(false);
   const [href, setHref] = useState("");
+  const fileInput = useRef<HTMLInputElement>(null);
 
   const button = (label: string, title: string, active: boolean, run: () => void, extra = "") => (
     <button
@@ -185,6 +205,19 @@ function Toolbar({ editor }: { editor: EditorInstance }) {
       {button("•", "无序列表", state.bullet, () => editor.chain().focus().toggleBulletList().run())}
       {button("1.", "有序列表", state.ordered, () => editor.chain().focus().toggleOrderedList().run(), "text-xs")}
       {button("❝", "引用", state.quote, () => editor.chain().focus().toggleBlockquote().run())}
+      <span className="mx-1 h-4 w-px bg-line" />
+      {button("图片", `插入图片（也可以直接粘贴或拖入，最多 ${MAX_POST_IMAGES} 张）`, false, () => fileInput.current?.click(), "text-xs")}
+      <input
+        ref={fileInput}
+        type="file"
+        accept={IMAGE_TYPES.join(",")}
+        multiple
+        hidden
+        onChange={(event) => {
+          editor.chain().focus().uploadImages(Array.from(event.target.files ?? [])).run();
+          event.target.value = ""; // lets the same file be picked again
+        }}
+      />
       {linking ? (
         <form
           className="ml-1 flex items-center gap-1"

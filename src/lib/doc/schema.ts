@@ -1,3 +1,4 @@
+import { MAX_UPLOAD_EDGE, parseImageKey } from "../image";
 import { MAX_SECONDS } from "../time";
 
 /**
@@ -5,6 +6,8 @@ import { MAX_SECONDS } from "../time";
  * the browser sends. Everything that is stored or rendered goes through
  * `sanitizeDoc`, which keeps only the node and mark types below (and only the
  * attributes we know). There is no raw-HTML node, so there is nothing to XSS.
+ * Images are the one thing that loads from a URL, so they carry only the key of a file
+ * in our own bucket (see lib/image.ts), never an address.
  */
 
 export interface DocMark {
@@ -39,6 +42,7 @@ const BLOCKS = [
   "orderedList",
   "codeBlock",
   "horizontalRule",
+  "image",
 ] as const;
 const INLINES = ["text", "hardBreak", "anchorChip"] as const;
 
@@ -53,6 +57,7 @@ const CHILDREN: Record<string, readonly string[]> = {
   listItem: BLOCKS,
   codeBlock: ["text"],
   horizontalRule: [],
+  image: [],
   hardBreak: [],
   anchorChip: [],
   text: [],
@@ -102,6 +107,25 @@ export function cleanChipAttrs(attrs: unknown): ChipAttrs | null {
   return Object.keys(chip).length > 0 ? chip : null;
 }
 
+export const MAX_ALT_LENGTH = 200;
+
+/** Clean image attributes; a valid key (one of our own files) is required, the rest is optional. */
+export function cleanImageAttrs(attrs: unknown): { key: string; alt?: string; width?: number; height?: number } | null {
+  if (!isRecord(attrs) || !parseImageKey(attrs.key)) return null;
+  const image: { key: string; alt?: string; width?: number; height?: number } = { key: attrs.key as string };
+  if (typeof attrs.alt === "string") {
+    const alt = attrs.alt.replace(/\s+/g, " ").trim();
+    if (alt) image.alt = Array.from(alt).slice(0, MAX_ALT_LENGTH).join("");
+  }
+  const width = intIn(attrs.width, 1, MAX_UPLOAD_EDGE);
+  const height = intIn(attrs.height, 1, MAX_UPLOAD_EDGE);
+  if (width !== undefined && height !== undefined) {
+    image.width = width;
+    image.height = height;
+  }
+  return image;
+}
+
 function cleanMarks(marks: unknown): DocMark[] | undefined {
   if (!Array.isArray(marks)) return undefined;
   const seen = new Set<string>();
@@ -142,6 +166,11 @@ function cleanNode(raw: unknown, parent: string, depth: number, budget: Budget):
   if (type === "anchorChip") {
     const attrs = cleanChipAttrs(raw.attrs);
     return attrs ? { type, attrs: { ...attrs } } : null;
+  }
+
+  if (type === "image") {
+    const attrs = cleanImageAttrs(raw.attrs);
+    return attrs ? { type, attrs } : null;
   }
 
   const node: DocNode = { type };

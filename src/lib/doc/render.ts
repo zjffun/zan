@@ -1,5 +1,6 @@
+import { mediaPath } from "../image";
 import { formatTimestamp } from "../time";
-import { sanitizeDocOrEmpty, type DocNode } from "./schema";
+import { cleanImageAttrs, sanitizeDocOrEmpty, type DocNode } from "./schema";
 import { chipLabel } from "./text";
 
 const ESCAPES: Record<string, string> = {
@@ -78,6 +79,12 @@ function renderNode(node: DocNode): string {
       return `<pre><code>${children()}</code></pre>`;
     case "horizontalRule":
       return "<hr>";
+    case "image": {
+      const image = cleanImageAttrs(node.attrs);
+      if (!image) return "";
+      const size = image.width && image.height ? ` width="${image.width}" height="${image.height}"` : "";
+      return `<img src="${escapeHtml(mediaPath(image.key))}" alt="${escapeHtml(image.alt ?? "")}"${size} loading="lazy" decoding="async">`;
+    }
     default:
       return "";
   }

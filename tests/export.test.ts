@@ -131,6 +131,15 @@ _2026-10-24_
     expect(evil).not.toMatch(/(^|[^\\])</m);
   });
 
+  it("writes images as Markdown images that point at the site", () => {
+    const key = "00000000-0000-4000-8000-0000000000aa/11111111-2222-4333-8444-555555555555.webp";
+    const body = doc(para(text("看图")), { type: "image", attrs: { key, alt: "封面" } });
+    const withOrigin = exportPostsMarkdown({ posts: [post({ body })], origin: "https://zan.example/" });
+    expect(withOrigin).toContain(`![封面](https://zan.example/media/${key})`);
+    // without an origin the path is relative: only useful on the site itself
+    expect(exportPostsMarkdown({ posts: [post({ body })] })).toContain(`![封面](/media/${key})`);
+  });
+
   it("copes with no posts", () => {
     expect(exportPostsMarkdown({ posts: [] })).toBe("# 我在 zan 攒下的内容\n");
   });

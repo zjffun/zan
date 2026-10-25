@@ -1,10 +1,13 @@
 import type { Anchor } from "../anchor";
-import { sanitizeDocOrEmpty, safeHref, cleanChipAttrs, type DocNode } from "./schema";
+import { mediaPath } from "../image";
+import { cleanImageAttrs, sanitizeDocOrEmpty, safeHref, cleanChipAttrs, type DocNode } from "./schema";
 import { chipLabel } from "./text";
 
 export interface MarkdownOptions {
   /** Where a time/page chip should link to (e.g. youtu.be/ID?t=754); null = plain label. */
   chipHref?: (anchor: Anchor) => string | null;
+  /** Address of an image, by its key. Defaults to the site-relative path, which only works on the site itself. */
+  imageHref?: (key: string) => string;
 }
 
 /** Escape what would otherwise be read as Markdown syntax inside a line of text. */
@@ -74,6 +77,12 @@ function block(node: DocNode, options: MarkdownOptions): string {
     }
     case "horizontalRule":
       return "---";
+    case "image": {
+      const image = cleanImageAttrs(node.attrs);
+      if (!image) return "";
+      const alt = (image.alt ?? "").replace(/([\\[\]])/g, "\\$1");
+      return `![${alt}](${(options.imageHref ?? mediaPath)(image.key)})`;
+    }
     default:
       return "";
   }

@@ -8,6 +8,9 @@ const doc = (...content: DocNode[]): DocNode => ({ type: "doc", content });
 const p = (...content: DocNode[]): DocNode => ({ type: "paragraph", content });
 const text = (value: string, marks?: DocNode["marks"]): DocNode => ({ type: "text", text: value, ...(marks ? { marks } : {}) });
 const chip = (attrs: Record<string, number>): DocNode => ({ type: "anchorChip", attrs });
+const OWNER = "00000000-0000-4000-8000-0000000000aa";
+const KEY = `${OWNER}/11111111-2222-4333-8444-555555555555.webp`;
+const image = (attrs: Record<string, unknown> = { key: KEY }): DocNode => ({ type: "image", attrs });
 
 describe("sanitizeDoc", () => {
   it("keeps a normal note intact", () => {
@@ -75,6 +78,58 @@ describe("sanitizeDoc", () => {
 
   it("clamps heading levels", () => {
     expect(sanitizeDoc(doc({ type: "heading", attrs: { level: 99 }, content: [text("h")] })).content?.[0].attrs).toEqual({ level: 1 });
+  });
+});
+
+describe("images in a document", () => {
+  it("keeps an image that points at one of our files, with its size and alt text", () => {
+    const input = doc(p(text("看图")), image({ key: KEY, alt: "封面", width: 800, height: 600 }));
+    expect(sanitizeDoc(input)).toEqual(input);
+  });
+
+  it("keeps images in quotes and lists, but not inside a paragraph", () => {
+    const quoted = doc({ type: "blockquote", content: [image()] }, { type: "bulletList", content: [{ type: "listItem", content: [image()] }] });
+    expect(sanitizeDoc(quoted)).toEqual(quoted);
+    expect(sanitizeDoc(doc(p(image()))).content?.[0].content).toBeUndefined();
+  });
+
+  it("drops anything that is not one of our files: addresses, data URLs, other paths", () => {
+    for (const src of ["https://example.com/a.png", "//evil.example/a.png", "data:image/svg+xml,<svg/>", "javascript:alert(1)", "/media/" + KEY, "../x.png", `${OWNER}/x.webp`, ""]) {
+      expect(sanitizeDoc(doc(image({ key: src }))), src).toEqual(doc());
+      expect(sanitizeDoc(doc(image({ src }))), src).toEqual(doc());
+    }
+    expect(sanitizeDoc(doc(image({})))).toEqual(doc());
+    expect(sanitizeDoc(doc({ type: "image" }))).toEqual(doc());
+  });
+
+  it("cleans the optional attributes and drops every other attribute", () => {
+    expect(sanitizeDoc(doc(image({ key: KEY, alt: "  很多   空格\n换行 ", width: 10, height: 20, onerror: "x", src: "https://evil.example/x.png", class: "x" }))).content?.[0].attrs).toEqual({
+      key: KEY,
+      alt: "很多 空格 换行",
+      width: 10,
+      height: 20,
+    });
+    // size needs both sides and sensible numbers; null is what the editor gives for "not set"
+    expect(sanitizeDoc(doc(image({ key: KEY, alt: null, width: 10, height: null }))).content?.[0].attrs).toEqual({ key: KEY });
+    expect(sanitizeDoc(doc(image({ key: KEY, width: -1, height: 5 }))).content?.[0].attrs).toEqual({ key: KEY });
+    expect(sanitizeDoc(doc(image({ key: KEY, width: 99999, height: 5 }))).content?.[0].attrs).toEqual({ key: KEY });
+    expect(sanitizeDoc(doc(image({ key: KEY, width: 1.5, height: 5 }))).content?.[0].attrs).toEqual({ key: KEY });
+    expect((sanitizeDoc(doc(image({ key: KEY, alt: "字".repeat(500) }))).content?.[0].attrs?.alt as string).length).toBe(200);
+  });
+
+  it("renders an <img> from the site's own /media path, with escaped alt text", () => {
+    expect(renderDocHtml(doc(image({ key: KEY, alt: '"><script>alert(1)</script>', width: 800, height: 600 })))).toBe(
+      `<img src="/media/${KEY}" alt="&quot;&gt;&lt;script&gt;alert(1)&lt;/script&gt;" width="800" height="600" loading="lazy" decoding="async">`,
+    );
+    expect(renderDocHtml(doc(image()))).toBe(`<img src="/media/${KEY}" alt="" loading="lazy" decoding="async">`);
+    expect(renderDocHtml(doc(image({ key: "https://evil.example/x.png" })))).toBe("");
+  });
+
+  it("is not part of the searchable text, and becomes Markdown with the alt text", () => {
+    expect(docToPlainText(sanitizeDoc(doc(p(text("前")), image({ key: KEY, alt: "封面" }), p(text("后")))))).toBe("前\n后");
+    expect(docToMarkdown(doc(p(text("前")), image({ key: KEY, alt: "a [b] c" })))).toBe(`前\n\n![a \\[b\\] c](/media/${KEY})`);
+    expect(docToMarkdown(doc(image()), { imageHref: (key) => `https://zan.example/media/${key}` })).toBe(`![](https://zan.example/media/${KEY})`);
+    expect(docToMarkdown(doc({ type: "bulletList", content: [{ type: "listItem", content: [p(text("项")), image()] }] }))).toBe(`- 项\n\n  ![](/media/${KEY})`);
   });
 });
 

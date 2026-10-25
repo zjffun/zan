@@ -30,6 +30,20 @@ const nextConfig: NextConfig = {
   cacheComponents: true,
   partialPrefetching: true,
   poweredByHeader: false,
+  // Images in posts are loaded from our own origin (img-src 'self' above) and fetched from the public
+  // storage bucket behind it, so the Supabase address never appears in a page. The pattern only matches
+  // our own keys (<user id>/<file id>.<ext>, see src/lib/image.ts). The bucket sends a year-long cache
+  // header (file names never repeat), so the CDN serves repeat views itself.
+  async rewrites() {
+    const supabase = (process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL)?.replace(/\/+$/, "");
+    if (!supabase) return [];
+    return [
+      {
+        source: "/media/:owner([0-9a-f-]{36})/:file([0-9a-f-]{36}\\.[a-z]{3,4})",
+        destination: `${supabase}/storage/v1/object/public/post-images/:owner/:file`,
+      },
+    ];
+  },
   async headers() {
     return [
       {

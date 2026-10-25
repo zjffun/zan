@@ -5,6 +5,8 @@
 //   /rest/v1/*  -> PostgREST (the same engine Supabase uses), unchanged
 //   /auth/v1/*  -> just enough of GoTrue: password sign-up/sign-in, token
 //                  refresh, /user, logout. Users are auto-confirmed.
+//   /storage/v1/object/* -> just enough of Storage: upload (service role only) and public
+//                  download, kept as plain files under .dev/storage (ZAN_DEV_STORAGE).
 //
 // A fixed dev account always exists (ZAN_DEV_EMAIL / ZAN_DEV_PASSWORD below), so
 // signing in keeps working after a restart, which forgets every other password.
@@ -14,6 +16,8 @@
 
 import http from "node:http";
 import crypto from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
 import { execFileSync } from "node:child_process";
 
 const PORT = Number(process.env.GATEWAY_PORT ?? 54321);
@@ -22,6 +26,7 @@ const SECRET = process.env.JWT_SECRET ?? "zan-local-dev-secret-at-least-32-chara
 const DB_URL = process.env.DATABASE_URL ?? "postgres:///zan_dev";
 const DEV_EMAIL = (process.env.ZAN_DEV_EMAIL ?? "dev@zan.local").toLowerCase();
 const DEV_PASSWORD = process.env.ZAN_DEV_PASSWORD ?? "zan-dev-123";
+const STORAGE_DIR = path.resolve(process.env.ZAN_DEV_STORAGE ?? ".dev/storage");
 
 const b64 = (input) => Buffer.from(input).toString("base64url");
 function sign(payload) {
@@ -167,6 +172,51 @@ async function rest(req, res, url) {
   res.end(Buffer.from(await upstream.arrayBuffer()));
 }
 
+// Files are kept as <STORAGE_DIR>/<bucket>/<key>, with <file>.meta.json beside each one.
+function storagePath(raw) {
+  let relative;
+  try {
+    relative = decodeURIComponent(raw);
+  } catch {
+    return null;
+  }
+  const full = path.resolve(STORAGE_DIR, relative);
+  return relative && !relative.endsWith("/") && full.startsWith(STORAGE_DIR + path.sep) ? full : null;
+}
+
+async function storage(req, res, url) {
+  const rest = url.pathname.replace(/^\/storage\/v1\/object\//, "");
+  const storageError = (status, error, message) => json(res, status, { statusCode: String(status), error, message });
+
+  if ((req.method === "GET" || req.method === "HEAD") && rest.startsWith("public/")) {
+    const file = storagePath(rest.slice("public/".length));
+    if (!file || !fs.existsSync(file) || !fs.statSync(file).isFile()) return storageError(404, "not_found", "Object not found");
+    const meta = JSON.parse(fs.readFileSync(`${file}.meta.json`, "utf8"));
+    res.writeHead(200, { "content-type": meta.contentType, "cache-control": meta.cacheControl, "content-length": fs.statSync(file).size });
+    return res.end(req.method === "HEAD" ? undefined : fs.readFileSync(file));
+  }
+
+  if ((req.method === "POST" || req.method === "PUT") && !rest.startsWith("public/")) {
+    const claims = verify((req.headers.authorization ?? "").replace(/^Bearer /i, ""));
+    if (claims?.role !== "service_role") {
+      return storageError(403, "Unauthorized", "new row violates row-level security policy");
+    }
+    const file = storagePath(rest);
+    if (!file || !rest.includes("/")) return storageError(400, "InvalidKey", "Invalid key");
+    const upsert = req.headers["x-upsert"] === "true" || req.method === "PUT";
+    if (fs.existsSync(file) && !upsert) return storageError(409, "Duplicate", "The resource already exists");
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, await readBody(req));
+    fs.writeFileSync(
+      `${file}.meta.json`,
+      JSON.stringify({ contentType: req.headers["content-type"] ?? "application/octet-stream", cacheControl: req.headers["cache-control"] ?? "max-age=3600" }),
+    );
+    return json(res, 200, { Id: crypto.randomUUID(), Key: rest });
+  }
+
+  return storageError(404, "not_found", `${req.method} ${url.pathname} is not implemented by the dev gateway`);
+}
+
 // keeps the id the seed (or an earlier run) gave the account, so its jars stay its own
 const devUser = { id: existingIdFromDb(DEV_EMAIL) ?? crypto.randomUUID(), email: DEV_EMAIL, password: DEV_PASSWORD };
 users.set(devUser.email, devUser);
@@ -178,7 +228,8 @@ http
     try {
       if (url.pathname.startsWith("/auth/v1/")) return await auth(req, res, url);
       if (url.pathname.startsWith("/rest/v1/")) return await rest(req, res, url);
-      json(res, 404, { message: "dev gateway: only /auth/v1 and /rest/v1" });
+      if (url.pathname.startsWith("/storage/v1/object/")) return await storage(req, res, url);
+      json(res, 404, { message: "dev gateway: only /auth/v1, /rest/v1 and /storage/v1/object" });
     } catch (error) {
       console.error(error);
       json(res, 500, { message: String(error) });
