@@ -23,9 +23,9 @@ const numberAttribute = (name: "t" | "page" | "ep") => ({
 const TIME = String.raw`((?:\d{1,2}[:：])?\d{1,3}[:：][0-5]\d)`;
 
 /**
- * Inline, atomic "anchor chip": a clickable 12:34 / p.132 / E5 12:34 label that
- * points into the work. It is created by the Alt+T shortcut, the "record time"
- * button, or by typing @12:34, p.132 or E5@12:34 followed by a space.
+ * Inline, atomic "anchor chip": a clickable 12:34 label that points into the video.
+ * It is created by the Alt+T shortcut, the "record time" button, or by typing @12:34
+ * followed by a space. (Page numbers and episodes are plain text.)
  */
 export const AnchorChip = Node.create<AnchorChipOptions>({
   name: "anchorChip",
@@ -68,7 +68,7 @@ export const AnchorChip = Node.create<AnchorChipOptions>({
     };
   },
 
-  /** Pasted text: "@4:16" and "E5@4:16" become labels right away (typing is handled by the input rules below). */
+  /** Pasted text: "@4:16" becomes a label right away (typing is handled by the input rules below). */
   addPasteRules() {
     const nodeType = this.type;
     return [
@@ -98,6 +98,10 @@ export const AnchorChip = Node.create<AnchorChipOptions>({
       new InputRule({
         find,
         handler: ({ state, range, match }) => {
+          // "name@4:16" or "E5@12:34" is not a time label: it must not be glued to the end of a word
+          const at = state.doc.resolve(range.from);
+          const before = at.parentOffset > 0 ? at.parent.textBetween(at.parentOffset - 1, at.parentOffset, undefined, "\ufffc") : "";
+          if (/[A-Za-z0-9_]/.test(before)) return null;
           const clean = cleanChipAttrs(attrs(match));
           if (!clean) return null;
           // the typed space is consumed by the rule: put one back after the chip
@@ -110,16 +114,10 @@ export const AnchorChip = Node.create<AnchorChipOptions>({
       });
 
     return [
-      // E5@12:34 must come before the plain @12:34 rule, which would also match its tail
-      rule(new RegExp(String.raw`\bE(\d{1,4})@${TIME}\s$`, "i"), (m) => {
-        const t = parseClock(m[2].replace(/：/g, ":"));
-        return t === null ? null : { ep: Number(m[1]), t };
-      }),
       rule(new RegExp(String.raw`@${TIME}\s$`), (m) => {
         const t = parseClock(m[1].replace(/：/g, ":"));
         return t === null ? null : { t };
       }),
-      rule(/\bp\.(\d{1,5})\s$/i, (m) => ({ page: Number(m[1]) })),
     ];
   },
 });

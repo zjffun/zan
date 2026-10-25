@@ -71,7 +71,8 @@ function renderNode(node: DocNode, options: RenderOptions): string {
       return `<span class="anchor-chip anchor-chip--static" data-anchor-chip=""${data}>${label}</span>`;
     }
     case "paragraph":
-      return `<p>${children()}</p>`;
+      // an empty line is a line: without the <br> it would have no height, and look smaller than in the editor
+      return `<p>${children() || "<br>"}</p>`;
     case "heading": {
       const tag = HEADING_TAG[Number(node.attrs?.level)] ?? "h3";
       return `<${tag}>${children()}</${tag}>`;

@@ -12,7 +12,9 @@ import { PostBody } from "@/components/PostBody";
 import { PostMenu } from "@/components/PostMenu";
 import { TagChip } from "@/components/TagChip";
 import { getCurrentUser, isUuid } from "@/lib/dal";
+import { firstChipTime } from "@/lib/doc/chips";
 import { renderDocHtml } from "@/lib/doc/render";
+import { sanitizeDocOrEmpty } from "@/lib/doc/schema";
 import { canSeek } from "@/lib/sources";
 import { excerptOf } from "@/lib/feed";
 import { getComments, getPost, getPublicPost, getViewerState } from "@/lib/posts";
@@ -74,7 +76,13 @@ async function PostPage({ params }: Pick<PageProps<"/p/[id]">, "params">) {
       </header>
 
       <div className="mt-5">
-        <PostBody source={post.source} status={post.source_status} anchors={post.anchors} html={renderDocHtml(post.body, { seekable: canSeek(post.source, post.source_status) })} />
+        <PostBody
+          source={post.source}
+          status={post.source_status}
+          anchors={post.anchors}
+          startAt={post.anchors.find((anchor) => anchor.t !== undefined)?.t ?? firstChipTime(sanitizeDocOrEmpty(post.body))}
+          html={renderDocHtml(post.body, { seekable: canSeek(post.source, post.source_status) })}
+        />
       </div>
 
       {post.tags.length > 0 ? (

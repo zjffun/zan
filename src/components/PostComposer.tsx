@@ -3,24 +3,19 @@
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { createPost, updatePost } from "@/app/actions/posts";
+import { firstChipTime } from "@/lib/doc/chips";
+import { withLegacyPositions } from "@/lib/doc/legacy-positions";
 import { EMPTY_DOC, type ChipAttrs, type DocNode } from "@/lib/doc/schema";
-import { chipLabel } from "@/lib/doc/text";
 import { MAX_POST_TAGS } from "@/lib/post-input";
-import { newRowId, rowsFromAnchors, rowsToAnchors, type PositionRow } from "@/lib/position-rows";
 import type { PostDetailData, Visibility } from "@/lib/types";
 import { NoteEditor, type NoteEditorHandle } from "./editor/NoteEditor";
 import { LinkAttach, type Attached } from "./LinkAttach";
-import { PositionsEditor } from "./PositionsEditor";
 import { SourcePlayer } from "./players/SourcePlayer";
 import type { PlayerHandle } from "./players/types";
 import { TagPicker, type TagPick } from "./TagPicker";
-import { formatTimestamp } from "@/lib/time";
 import { useResetOnHide } from "@/lib/use-reset-on-hide";
 
-const TIME_HINT: Record<string, string> = {
-  youtube: "“记录当前时间”会按播放器的当前时间加一个位置，可以接着写描述；写内容时按 Alt+T，会在光标处放一个可点击的时间标签。",
-  bilibili: "B 站播放器读不到当前时间：在下面的“位置”里手动输入 12:34，或贴一个带 ?t= 的链接。",
-};
+const YOUTUBE_HINT = "“记录当前时间”或按 Alt+T，会在光标处放一个可点击的时间标签。";
 
 /** Turns a saved post back into what the composer edits. */
 function fromPost(post: PostDetailData): {
@@ -41,7 +36,7 @@ function fromPost(post: PostDetailData): {
 }
 
 /**
- * Write a post, or edit one: text (with clickable time/page labels), an optional
+ * Write a post, or edit one: text (with clickable time labels), an optional
  * video or link, up to five tags, and who can see it.
  */
 export function PostComposer({ post, presetTags = [] }: { post?: PostDetailData; presetTags?: TagPick[] }) {
@@ -50,14 +45,14 @@ export function PostComposer({ post, presetTags = [] }: { post?: PostDetailData;
 
   const editorRef = useRef<NoteEditorHandle>(null);
   const playerRef = useRef<PlayerHandle>(null);
-  const doc = useRef<DocNode>((post?.body as DocNode | undefined) ?? EMPTY_DOC);
+  // an older post kept its positions in a list of their own: they open as lines at the top of the text
+  const [startDoc] = useState(() => (post ? withLegacyPositions(post.body, post.anchors) : undefined));
+  const doc = useRef<DocNode>(startDoc ?? EMPTY_DOC);
   const [isEmpty, setIsEmpty] = useState(!post);
 
   const [attached, setAttached] = useState<Attached | null>(initial?.attached ?? null);
   const [tags, setTags] = useState<TagPick[]>(initial?.tags ?? presetTags);
   const [visibility, setVisibility] = useState<Visibility>(post?.visibility ?? "public");
-  const [rows, setRows] = useState<PositionRow[]>(() => (post ? rowsFromAnchors(post.anchors) : []));
-  const rowsRef = useRef(rows); // the latest list, for callbacks that fire in quick succession
   const [startAt, setStartAt] = useState<number | undefined>(undefined);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(0);
@@ -75,45 +70,21 @@ export function PostComposer({ post, presetTags = [] }: { post?: PostDetailData;
     setAttached(null);
     setTags(presetTags);
     setVisibility("public");
-    changeRows([]);
     setStartAt(undefined);
   });
 
   const provider = attached?.source.provider;
   const playable = provider === "youtube" || provider === "bilibili";
 
-  function changeRows(next: PositionRow[]) {
-    rowsRef.current = next;
-    setRows(next);
-  }
-
-  /** A time label in the text or a link with a start time becomes the post's first position, unless it has one already. */
-  function adopt(label: string) {
-    if (rowsRef.current.length === 0) changeRows([{ id: newRowId(), position: label, note: "" }]);
-  }
-
-  /** The player's current time, or null (with the reason shown) when it cannot be read. */
-  function currentTime(): number | null {
+  /** The button and Alt+T: a clickable label with the player's current time, at the cursor. */
+  function recordTime() {
     const t = playerRef.current?.getCurrentTime();
     if (t == null) {
-      setError(TIME_HINT[provider ?? ""] ?? "这个播放器读不到当前时间：请手动输入，如 12:34。");
-      return null;
+      setError("读不到播放器的当前时间，请手动输入，如 @12:34 加空格。");
+      return;
     }
     setError(null);
-    return t;
-  }
-
-  /** "Record current time": a new position at the player's time, with the cursor in its description. */
-  function recordPosition() {
-    const t = currentTime();
-    if (t === null) return;
-    changeRows([...rowsRef.current, { id: newRowId(), position: formatTimestamp(Math.floor(t)), note: "", focus: "note" }]);
-  }
-
-  /** Alt+T while writing: a clickable time label at the cursor. */
-  function recordChip() {
-    const t = currentTime();
-    if (t !== null) editorRef.current?.insertChip({ t });
+    editorRef.current?.insertChip({ t });
   }
 
   function seek(attrs: ChipAttrs) {
@@ -121,12 +92,10 @@ export function PostComposer({ post, presetTags = [] }: { post?: PostDetailData;
   }
 
   function linkAttached(next: Attached) {
-    if (next.startAt) {
-      setStartAt(next.startAt);
-      adopt(formatTimestamp(next.startAt));
-    } else {
-      setStartAt(undefined);
-    }
+    setStartAt(next.startAt);
+    // a link that starts at 1:30 leaves a label for it in the text (so the post's player starts there too),
+    // unless the text already has a time of its own
+    if (next.startAt && firstChipTime(doc.current) === undefined) editorRef.current?.insertChip({ t: next.startAt });
   }
 
   async function submit() {
@@ -137,20 +106,13 @@ export function PostComposer({ post, presetTags = [] }: { post?: PostDetailData;
       return;
     }
 
-    const positions = rowsToAnchors(rows);
-    if (!positions.ok) {
-      setError(positions.error);
-      return;
-    }
-    const anchors = positions.anchors;
-    if (isEmpty && !attached && anchors.length === 0) {
+    if (isEmpty && !attached) {
       setError("先写点什么，或者贴一个链接。");
       return;
     }
 
     const input = {
       body: doc.current,
-      anchors,
       source: attached
         ? {
             provider: attached.source.provider,
@@ -185,30 +147,29 @@ export function PostComposer({ post, presetTags = [] }: { post?: PostDetailData;
             startAt={startAt}
             handleRef={playerRef}
           />
-          <div className="flex flex-wrap items-center gap-2">
-            {/* only YouTube's player can tell us the time; Bilibili's cannot, so there is nothing to click there */}
-            {provider === "youtube" ? (
-              <button type="button" className="btn btn-sm" onClick={recordPosition}>
+          {/* only YouTube's player can tell us the time; Bilibili's cannot, so there is nothing to click there */}
+          {provider === "youtube" ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <button type="button" className="btn btn-sm" onClick={recordTime}>
                 记录当前时间
               </button>
-            ) : null}
-            <span className="min-w-0 flex-1 text-xs text-muted">{TIME_HINT[provider!]}</span>
-          </div>
+              <span className="min-w-0 flex-1 text-xs text-muted">{YOUTUBE_HINT}</span>
+            </div>
+          ) : null}
         </div>
       ) : null}
 
       <NoteEditor
         ref={editorRef}
-        initial={post?.body as DocNode | undefined}
-        placeholder="写点什么… 输入 @12:34 或 p.132 加空格，会变成可点击的位置标签"
+        initial={startDoc}
+        placeholder="写点什么… 输入 @12:34 加空格，会变成可点击的时间标签"
         autofocus
         onChange={(next, empty) => {
           doc.current = next;
           setIsEmpty(empty);
         }}
-        onChipAdded={(attrs) => adopt(chipLabel(attrs))}
         onChipClick={seek}
-        onTimeShortcut={recordChip}
+        onTimeShortcut={recordTime}
         onSubmit={submit}
         onUploadingChange={setUploading}
       />
@@ -221,8 +182,6 @@ export function PostComposer({ post, presetTags = [] }: { post?: PostDetailData;
         </p>
         <TagPicker value={tags} onChange={setTags} />
       </div>
-
-      <PositionsEditor rows={rows} onChange={changeRows} />
 
       {error ? (
         <p role="alert" className="text-sm text-danger">

@@ -12,6 +12,7 @@ import { EMPTY_DOC, sanitizeDocOrEmpty, safeHref, type ChipAttrs, type DocNode }
 import { chipFromElement } from "@/lib/doc/chip-dom";
 import { IMAGE_TYPES, MAX_POST_IMAGES } from "@/lib/image";
 import { AnchorChip } from "./anchor-chip";
+import { BreaksAreParagraphs } from "./breaks-are-paragraphs";
 import { ImageUpload } from "./image-upload";
 import { PostImage } from "./post-image";
 import { QuoteExit } from "./quote-exit";
@@ -65,10 +66,11 @@ export function NoteEditor({ ref, ...props }: NoteEditorProps) {
         underline: false,
         link: { openOnClick: false, autolink: true, protocols: ["http", "https", "mailto"] },
       }),
-      Placeholder.configure({ placeholder: props.placeholder ?? "写点什么… 输入 @12:34 或 p.132 加空格，会变成可点击的位置标签" }),
+      Placeholder.configure({ placeholder: props.placeholder ?? "写点什么… 输入 @12:34 加空格，会变成可点击的时间标签" }),
       AnchorChip.configure({ onTimeShortcut: () => latest.current.onTimeShortcut?.() }),
       PostImage,
       QuoteExit,
+      BreaksAreParagraphs,
       ImageUpload.configure({
         onBusyChange: (running) => latest.current.onUploadingChange?.(running),
         onError: (message) => setNotice(message),
@@ -206,7 +208,7 @@ function Toolbar({ editor }: { editor: EditorInstance }) {
       {button("H", "小标题", state.heading, () => editor.chain().focus().toggleHeading({ level: 2 }).run(), "font-bold")}
       {button("•", "无序列表", state.bullet, () => editor.chain().focus().toggleBulletList().run())}
       {button("1.", "有序列表", state.ordered, () => editor.chain().focus().toggleOrderedList().run(), "text-xs")}
-      {button("❝", "引用（回车结束引用，Shift+回车在引用里换行）", state.quote, () => editor.chain().focus().toggleBlockquote().run())}
+      {button("❝", "引用（回车结束引用，Shift+回车在引用里另起一行）", state.quote, () => editor.chain().focus().toggleBlockquote().run())}
       <span className="mx-1 h-4 w-px bg-line" />
       {button("图片", `插入图片（也可以直接粘贴或拖入，最多 ${MAX_POST_IMAGES} 张）`, false, () => fileInput.current?.click(), "text-xs")}
       <input

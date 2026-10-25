@@ -1,3 +1,4 @@
+import { anchorLabel } from "../anchor";
 import { MAX_UPLOAD_EDGE, parseImageKey } from "../image";
 import { MAX_SECONDS } from "../time";
 import { splitTimeMarks } from "./time-marks";
@@ -150,6 +151,33 @@ interface Budget {
   nodes: number;
 }
 
+/**
+ * A line break inside a paragraph or heading (Shift+Enter, or a <br> in pasted text) would look unlike
+ * pressing Enter: lines pressed together, against a gap between paragraphs. There is only one kind of
+ * line break here, so the text is cut into paragraphs at each of them. (A break at the very end shows
+ * nothing in a browser either, so it is dropped.)
+ */
+function breaksToParagraphs(node: DocNode, budget: Budget): DocNode[] {
+  if ((node.type !== "paragraph" && node.type !== "heading") || !node.content?.some((child) => child.type === "hardBreak")) {
+    return [node];
+  }
+  const children = [...node.content];
+  if (children[children.length - 1].type === "hardBreak") children.pop();
+  const lines: DocNode[][] = [[]];
+  for (const child of children) {
+    if (child.type === "hardBreak") lines.push([]);
+    else lines[lines.length - 1].push(child);
+  }
+  budget.nodes += lines.length - 1;
+  if (budget.nodes > MAX_NODES) throw new DocError("document is too large");
+  return lines.map((line) => {
+    const piece: DocNode = { type: node.type };
+    if (node.attrs) piece.attrs = { ...node.attrs };
+    if (line.length > 0) piece.content = line;
+    return piece;
+  });
+}
+
 function cleanNode(raw: unknown, parent: string, depth: number, budget: Budget): DocNode | null {
   if (!isRecord(raw) || typeof raw.type !== "string") return null;
   const type = raw.type;
@@ -166,7 +194,11 @@ function cleanNode(raw: unknown, parent: string, depth: number, budget: Budget):
 
   if (type === "anchorChip") {
     const attrs = cleanChipAttrs(raw.attrs);
-    return attrs ? { type, attrs: { ...attrs } } : null;
+    if (!attrs) return null;
+    // Only a time can be clicked (it moves the player). A page or an episode on its own, which older
+    // posts may have, is kept as the text it says: "p.132", "E5". (One that came with a time is split
+    // off in withPositionLabels.)
+    return attrs.t === undefined ? { type: "text", text: anchorLabel(attrs) } : { type, attrs: { ...attrs } };
   }
 
   if (type === "image") {
@@ -190,7 +222,7 @@ function cleanNode(raw: unknown, parent: string, depth: number, budget: Budget):
     const content: DocNode[] = [];
     for (const child of raw.content) {
       const clean = cleanNode(child, type, depth + 1, budget);
-      if (clean) content.push(clean);
+      if (clean) content.push(...breaksToParagraphs(clean, budget));
     }
     const children = type === "paragraph" || type === "heading" ? withPositionLabels(content, budget) : content;
     if (children.length > 0) node.content = children;
@@ -201,12 +233,19 @@ function cleanNode(raw: unknown, parent: string, depth: number, budget: Budget):
 }
 
 /**
- * "@4:16" and "E5@4:16" in the text of a paragraph or heading become position labels, as if they had
- * been typed in the editor. Text that is code or a link is left alone.
+ * In the text of a paragraph or heading: "@4:16" becomes a time label, as if it had been typed in the
+ * editor (code and links are left alone), and a label that carries an episode or a page besides its
+ * time keeps only the time, with the episode or page written out in front of it ("E5 [1:30]").
  */
 function withPositionLabels(content: DocNode[], budget: Budget): DocNode[] {
   const out: DocNode[] = [];
   for (const node of content) {
+    if (node.type === "anchorChip" && (node.attrs?.ep !== undefined || node.attrs?.page !== undefined)) {
+      const { ep, page, t } = node.attrs as ChipAttrs;
+      if (++budget.nodes > MAX_NODES) throw new DocError("document is too large");
+      out.push({ type: "text", text: `${anchorLabel({ ep, page })} ` }, { type: "anchorChip", attrs: { t } });
+      continue;
+    }
     const plain = node.type === "text" && !node.marks?.some((mark) => mark.type === "code" || mark.type === "link");
     if (!plain || !node.text) {
       out.push(node);
@@ -240,7 +279,7 @@ export function sanitizeDoc(input: unknown): DocNode {
   if (Array.isArray(input.content)) {
     for (const child of input.content) {
       const clean = cleanNode(child, "doc", 1, budget);
-      if (clean) content.push(clean);
+      if (clean) content.push(...breaksToParagraphs(clean, budget));
     }
   }
   return { type: "doc", content };

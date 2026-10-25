@@ -159,7 +159,7 @@ body {
   white-space: nowrap;
 }
 
-/* ---- anchor chips: the clickable 12:34 / p.132 labels in notes ----------- */
+/* ---- anchor chips: the clickable 12:34 labels in notes ------------------- */
 
 .anchor-chip {
   display: inline-flex;
@@ -180,9 +180,6 @@ body {
 }
 .anchor-chip:hover {
   filter: brightness(0.95);
-}
-.anchor-chip[data-page]:not([data-t]):not([data-ep]) {
-  cursor: default;
 }
 /* A label that makes the player jump: accent colour, a small play mark, a pointer. */
 .anchor-chip--seek {

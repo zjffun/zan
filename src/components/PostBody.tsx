@@ -15,11 +15,15 @@ export function PostBody({
   source,
   status,
   anchors,
+  startAt,
   html,
 }: {
   source: PostSource | null;
   status: "ok" | "dead";
+  /** positions kept in a list of their own: only on posts from before the editor dropped that list */
   anchors: Anchor[];
+  /** where the player starts: the first time the post mentions */
+  startAt?: number;
   /** rendered on the server from the whitelist */
   html: string;
 }) {
@@ -33,7 +37,7 @@ export function PostBody({
   return (
     <div className="space-y-4">
       {source ? (
-        <SourcePlayer source={{ ...source, status }} startAt={anchors.find((anchor) => anchor.t !== undefined)?.t} handleRef={playerRef} />
+        <SourcePlayer source={{ ...source, status }} startAt={startAt} handleRef={playerRef} />
       ) : null}
 
       {anchors.length > 0 ? (
@@ -49,8 +53,11 @@ export function PostBody({
                 >
                   {anchorLabel(anchor)}
                 </button>
-              ) : (
+              ) : anchor.t !== undefined ? (
                 <span className="anchor-chip anchor-chip--static !m-0 shrink-0">{anchorLabel(anchor)}</span>
+              ) : (
+                // a page, an episode, a chapter: not a label, only words
+                <span className="shrink-0 text-sm font-medium tabular-nums text-muted">{anchorLabel(anchor)}</span>
               )}
               {anchor.note ? <span className="min-w-0 whitespace-pre-line break-words text-sm">{anchor.note}</span> : null}
             </li>

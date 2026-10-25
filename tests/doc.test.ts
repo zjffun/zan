@@ -55,6 +55,19 @@ describe("sanitizeDoc", () => {
     expect(sanitizeDoc(doc(p({ type: "anchorChip", attrs: { t: 5, href: "javascript:x", class: "x" } }))).content?.[0].content?.[0].attrs).toEqual({ t: 5 });
   });
 
+  it("keeps only labels that have a time: a page or an episode alone becomes the text it says", () => {
+    expect(sanitizeDoc(doc(p(chip({ page: 132 }))))).toEqual(doc(p(text("p.132"))));
+    expect(sanitizeDoc(doc(p(chip({ ep: 5 }))))).toEqual(doc(p(text("E5"))));
+    // with a time it is a label for the time; the episode or page that came with it is written out before it
+    expect(sanitizeDoc(doc(p(chip({ ep: 5, t: 90 }))))).toEqual(doc(p(text("E5 "), chip({ t: 90 }))));
+    expect(sanitizeDoc(doc(p(chip({ page: 3, t: 90 }))))).toEqual(doc(p(text("p.3 "), chip({ t: 90 }))));
+    expect(sanitizeDoc(doc(p(text("看"), chip({ ep: 2, page: 7, t: 5 }), text("处"))))).toEqual(
+      doc(p(text("看"), text("E2 p.7 "), chip({ t: 5 }), text("处"))),
+    );
+    // and the plain text is searchable like any other
+    expect(docToPlainText(sanitizeDoc(doc(p(text("读到 "), chip({ page: 132 })))))).toBe("读到 p.132");
+  });
+
   it("enforces the content model", () => {
     // a list directly inside a paragraph, text directly inside the doc: dropped
     expect(sanitizeDoc(doc(text("loose") as DocNode, p({ type: "bulletList", content: [] })))).toEqual(doc({ type: "paragraph" }));
@@ -81,6 +94,51 @@ describe("sanitizeDoc", () => {
   });
 });
 
+describe("line breaks", () => {
+  const br: DocNode = { type: "hardBreak" };
+  const bold = [{ type: "bold" }];
+
+  it("cuts a paragraph into paragraphs at every line break, so that there is one kind of gap", () => {
+    expect(sanitizeDoc(doc(p(text("他们没有先共情我。"), br, text("感到受伤时，人先要被理解。"))))).toEqual(
+      doc(p(text("他们没有先共情我。")), p(text("感到受伤时，人先要被理解。"))),
+    );
+  });
+
+  it("keeps a blank line a blank line, and drops a break at the very end (a browser shows nothing for it)", () => {
+    expect(sanitizeDoc(doc(p(text("a"), br, br, text("b"))))).toEqual(doc(p(text("a")), { type: "paragraph" }, p(text("b"))));
+    expect(sanitizeDoc(doc(p(text("a"), br)))).toEqual(doc(p(text("a"))));
+    expect(sanitizeDoc(doc(p(text("a"), br, br)))).toEqual(doc(p(text("a")), { type: "paragraph" }));
+    expect(sanitizeDoc(doc(p(br, text("a"))))).toEqual(doc({ type: "paragraph" }, p(text("a"))));
+    expect(sanitizeDoc(doc(p(br)))).toEqual(doc({ type: "paragraph" }));
+  });
+
+  it("works in headings, quotes and lists, and keeps the marks and the heading level", () => {
+    expect(sanitizeDoc(doc({ type: "heading", attrs: { level: 2 }, content: [text("a"), br, text("b")] }))).toEqual(
+      doc({ type: "heading", attrs: { level: 2 }, content: [text("a")] }, { type: "heading", attrs: { level: 2 }, content: [text("b")] }),
+    );
+    expect(sanitizeDoc(doc({ type: "blockquote", content: [p(text("a"), br, text("b"))] }))).toEqual(
+      doc({ type: "blockquote", content: [p(text("a")), p(text("b"))] }),
+    );
+    const item = { type: "listItem", content: [p(text("a"), br, text("b"))] };
+    expect(sanitizeDoc(doc({ type: "bulletList", content: [item] }))).toEqual(
+      doc({ type: "bulletList", content: [{ type: "listItem", content: [p(text("a")), p(text("b"))] }] }),
+    );
+    expect(sanitizeDoc(doc(p(text("粗", bold), br, text("也粗", bold))))).toEqual(doc(p(text("粗", bold)), p(text("也粗", bold))));
+  });
+
+  it("renders as paragraphs, and an empty paragraph as a line of its own", () => {
+    expect(renderDocHtml(doc(p(text("a"), br, text("b"))))).toBe("<p>a</p><p>b</p>");
+    expect(renderDocHtml(doc(p(text("a")), { type: "paragraph" }, p(text("b"))))).toBe("<p>a</p><p><br></p><p>b</p>");
+  });
+
+  it("is a fixed point, and exports and indexes the paragraphs", () => {
+    const once = sanitizeDoc(doc(p(text("a"), br, text("b"))));
+    expect(sanitizeDoc(once)).toEqual(once);
+    expect(docToMarkdown(doc(p(text("a"), br, text("b"))))).toBe("a\n\nb");
+    expect(docToPlainText(once)).toBe("a\nb");
+  });
+});
+
 describe("position labels written as text", () => {
   const bold = [{ type: "bold" }];
   const labelOf = (node: DocNode) => (node.type === "anchorChip" ? node.attrs : node.text);
@@ -93,9 +151,9 @@ describe("position labels written as text", () => {
     expect(docToPlainText(out)).toBe("4:16 身份危机（Identity Crisis），心理学里常译作");
   });
 
-  it("does the same in headings, with the episode form and the full-width colon", () => {
-    const out = sanitizeDoc(doc({ type: "heading", attrs: { level: 2 }, content: [text("E5@12：34 开场 @1:00")] }));
-    expect(out.content?.[0].content?.map(labelOf)).toEqual([{ ep: 5, t: 754 }, " 开场 ", { t: 60 }]);
+  it("does the same in headings, with the full-width colon; E5@12:34 is not a format and stays text", () => {
+    const out = sanitizeDoc(doc({ type: "heading", attrs: { level: 2 }, content: [text("开场 @1：05 E5@12:34 @1:00")] }));
+    expect(out.content?.[0].content?.map(labelOf)).toEqual(["开场 ", { t: 65 }, " E5@12:34 ", { t: 60 }]);
   });
 
   it("renders them as clickable labels and exports them as links", () => {
@@ -195,18 +253,17 @@ describe("renderDocHtml", () => {
   });
 
   it("renders anchor chips as buttons when the post has a player, as plain labels when it has not", () => {
-    const body = doc(p(chip({ ep: 5, t: 754 })));
+    const body = doc(p(chip({ t: 754 })));
     expect(renderDocHtml(body, { seekable: true })).toBe(
-      '<p><button type="button" class="anchor-chip anchor-chip--seek" data-anchor-chip="" data-t="754" data-ep="5" title="跳到 12:34">E5 12:34</button></p>',
+      '<p><button type="button" class="anchor-chip anchor-chip--seek" data-anchor-chip="" data-t="754" title="跳到 12:34">12:34</button></p>',
     );
-    expect(renderDocHtml(body)).toBe('<p><span class="anchor-chip anchor-chip--static" data-anchor-chip="" data-t="754" data-ep="5">E5 12:34</span></p>');
+    expect(renderDocHtml(body)).toBe('<p><span class="anchor-chip anchor-chip--static" data-anchor-chip="" data-t="754">12:34</span></p>');
     expect(renderDocHtml(body, { seekable: false })).toBe(renderDocHtml(body));
   });
 
-  it("never makes a page or chapter label a button, whatever the player", () => {
-    expect(renderDocHtml(doc(p(chip({ page: 132 }))), { seekable: true })).toBe(
-      '<p><span class="anchor-chip anchor-chip--static" data-anchor-chip="" data-page="132">p.132</span></p>',
-    );
+  it("shows a page or an episode on its own as plain text, not as a label", () => {
+    expect(renderDocHtml(doc(p(text("见 "), chip({ page: 132 }), text(" 页"))), { seekable: true })).toBe("<p>见 p.132 页</p>");
+    expect(renderDocHtml(doc(p(chip({ ep: 5 }))))).toBe("<p>E5</p>");
   });
 
   it("never emits script or event handlers, whatever the input", () => {
