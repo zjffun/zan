@@ -1,6 +1,6 @@
 import "server-only";
 import { cacheLife, cacheTag } from "next/cache";
-import { anchorSchema } from "./anchor";
+import { readAnchors } from "./anchor";
 import { excerptOf, FEED_PAGE_SIZE } from "./feed";
 import { createAnonClient } from "./supabase/anon";
 import { createClient } from "./supabase/server";
@@ -14,7 +14,7 @@ import { TAG_KINDS, type AuthorRef, type CommentData, type PostCardData, type Po
  */
 
 const CARD_SELECT =
-  "id, plain_text, source, source_status, anchor, visibility, like_count, comment_count, created_at, " +
+  "id, plain_text, source, source_status, anchor, anchors, visibility, like_count, comment_count, created_at, " +
   "author:profiles(id, nickname), post_tags(tag:tags(id, slug, name, kind))";
 
 const DETAIL_SELECT = `${CARD_SELECT}, body, updated_at`;
@@ -32,6 +32,8 @@ interface RawPost {
   body?: unknown;
   source: PostSource | null;
   source_status: "ok" | "dead";
+  /** the list of positions; `anchor` is the old single position of posts from before the list existed */
+  anchors: unknown;
   anchor: unknown;
   visibility: Visibility;
   like_count: number;
@@ -60,14 +62,13 @@ function toTags(row: RawPost): TagRef[] {
 }
 
 function toCard(row: RawPost): PostCardData {
-  const anchor = anchorSchema.safeParse(row.anchor);
   return {
     id: row.id,
     author: row.author ?? GONE_AUTHOR,
     excerpt: excerptOf(row.plain_text),
     source: row.source,
     source_status: row.source_status,
-    anchor: anchor.success ? anchor.data : null,
+    anchors: readAnchors(row.anchors, row.anchor),
     visibility: row.visibility,
     like_count: row.like_count,
     comment_count: row.comment_count,

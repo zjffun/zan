@@ -1,6 +1,6 @@
 /* eslint-disable @next/next/no-img-element -- video thumbnails come from third-party hosts that block hotlinking */
 import Link from "next/link";
-import { anchorLabel } from "@/lib/anchor";
+import { anchorsLabel } from "@/lib/anchor";
 import { PROVIDER_LABEL, sourceTitle } from "@/lib/sources";
 import type { PostCardData } from "@/lib/types";
 import { Avatar } from "./Avatar";
@@ -38,7 +38,7 @@ export function PostCard({ post, liked, signedIn }: { post: PostCardData; liked:
           <span className="absolute bottom-2 left-2 inline-flex items-center gap-1 rounded-full bg-black/60 px-2 py-0.5 text-xs text-white">
             <PlayIcon className="size-3" />
             {PROVIDER_LABEL[source!.provider]}
-            {post.anchor ? ` · ${anchorLabel(post.anchor)}` : ""}
+            {post.anchors.length > 0 ? ` · ${anchorsLabel(post.anchors)}` : ""}
           </span>
           {dead ? (
             <span className="absolute right-2 top-2 rounded-full bg-black/60 px-2 py-0.5 text-xs text-white">视频已失效</span>
@@ -53,10 +53,10 @@ export function PostCard({ post, liked, signedIn }: { post: PostCardData; liked:
         {source && !thumbnail ? (
           <p className="truncate text-xs text-muted">
             {PROVIDER_LABEL[source.provider]} · {title}
-            {post.anchor ? ` · ${anchorLabel(post.anchor)}` : ""}
+            {post.anchors.length > 0 ? ` · ${anchorsLabel(post.anchors)}` : ""}
           </p>
         ) : null}
-        {!source && post.anchor ? <span className="anchor-chip !m-0 !cursor-default">{anchorLabel(post.anchor)}</span> : null}
+        {!source && post.anchors.length > 0 ? <span className="anchor-chip !m-0 !cursor-default">{anchorsLabel(post.anchors)}</span> : null}
 
         {post.tags.length > 0 || post.visibility === "private" ? (
           <div className="relative z-20 flex flex-wrap items-center gap-1.5">

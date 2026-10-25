@@ -63,7 +63,7 @@ export function LinkAttach({
           ) : null}
           <div className="min-w-0 flex-1">
             <label className="text-xs font-medium text-muted" htmlFor="attached-title">
-              {PROVIDER_LABEL[value.source.provider]} · 标题{value.needsTitle ? "（需要手动填写）" : "（可修改）"}
+              {PROVIDER_LABEL[value.source.provider]} · 标题（选填）
             </label>
             <input
               id="attached-title"
@@ -71,6 +71,7 @@ export function LinkAttach({
               value={value.title}
               onChange={(event) => onChange({ ...value, title: event.target.value })}
               maxLength={300}
+              placeholder={value.needsTitle ? "没能自动取到标题，可以手动写一个，也可以留空" : "留空就只显示链接来源"}
             />
             <p className="mt-1 text-xs text-muted">
               {[meta?.author, meta?.part, meta?.duration ? formatTimestamp(meta.duration) : null, value.startAt ? `从 ${formatTimestamp(value.startAt)} 开始` : null]

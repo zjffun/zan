@@ -77,7 +77,8 @@ export interface PostCardData {
   excerpt: string;
   source: PostSource | null;
   source_status: "ok" | "dead";
-  anchor: Anchor | null;
+  /** where in the video or book the post points, each with an optional note */
+  anchors: Anchor[];
   visibility: Visibility;
   like_count: number;
   comment_count: number;

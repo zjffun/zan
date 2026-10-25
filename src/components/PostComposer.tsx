@@ -3,30 +3,28 @@
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { createPost, updatePost } from "@/app/actions/posts";
-import { anchorToText, MAX_QUOTE_LENGTH } from "@/lib/anchor";
-import { parseAnchorText } from "@/lib/anchor-text";
 import { EMPTY_DOC, type ChipAttrs, type DocNode } from "@/lib/doc/schema";
 import { chipLabel } from "@/lib/doc/text";
 import { MAX_POST_TAGS } from "@/lib/post-input";
+import { newRowId, rowsFromAnchors, rowsToAnchors, type PositionRow } from "@/lib/position-rows";
 import type { PostDetailData, Visibility } from "@/lib/types";
 import { NoteEditor, type NoteEditorHandle } from "./editor/NoteEditor";
 import { LinkAttach, type Attached } from "./LinkAttach";
+import { PositionsEditor } from "./PositionsEditor";
 import { SourcePlayer } from "./players/SourcePlayer";
 import type { PlayerHandle } from "./players/types";
 import { TagPicker, type TagPick } from "./TagPicker";
 import { formatTimestamp } from "@/lib/time";
 
 const TIME_HINT: Record<string, string> = {
-  youtube: "Alt+T 或“记录当前时间”会把播放器的当前时间放进内容里。",
-  bilibili: "B 站播放器读不到当前时间：手动输入 @12:34，或贴一个带 ?t= 的链接。",
+  youtube: "“记录当前时间”会按播放器的当前时间加一个位置，可以接着写描述；写内容时按 Alt+T，会在光标处放一个可点击的时间标签。",
+  bilibili: "B 站播放器读不到当前时间：在下面的“位置”里手动输入 12:34，或贴一个带 ?t= 的链接；写内容时输入 @12:34 加空格，会变成可点击的时间标签。",
 };
 
 /** Turns a saved post back into what the composer edits. */
 function fromPost(post: PostDetailData): {
   attached: Attached | null;
   tags: TagPick[];
-  anchorText: string;
-  quote: string;
 } {
   return {
     attached: post.source
@@ -38,8 +36,6 @@ function fromPost(post: PostDetailData): {
         }
       : null,
     tags: post.tags.map((tag) => ({ id: tag.id, name: tag.name })),
-    anchorText: post.anchor ? anchorToText(post.anchor) : "",
-    quote: post.anchor?.quote ?? "",
   };
 }
 
@@ -59,10 +55,8 @@ export function PostComposer({ post, presetTags = [] }: { post?: PostDetailData;
   const [attached, setAttached] = useState<Attached | null>(initial?.attached ?? null);
   const [tags, setTags] = useState<TagPick[]>(initial?.tags ?? presetTags);
   const [visibility, setVisibility] = useState<Visibility>(post?.visibility ?? "public");
-  const [anchorText, setAnchorText] = useState(initial?.anchorText ?? "");
-  const anchorTextRef = useRef(anchorText);
-  const [quote, setQuote] = useState(initial?.quote ?? "");
-  const [moreOpen, setMoreOpen] = useState(Boolean(initial?.anchorText || initial?.quote));
+  const [rows, setRows] = useState<PositionRow[]>(() => (post ? rowsFromAnchors(post.anchors) : []));
+  const rowsRef = useRef(rows); // the latest list, for callbacks that fire in quick succession
   const [startAt, setStartAt] = useState<number | undefined>(undefined);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(0);
@@ -71,27 +65,38 @@ export function PostComposer({ post, presetTags = [] }: { post?: PostDetailData;
   const provider = attached?.source.provider;
   const playable = provider === "youtube" || provider === "bilibili";
 
-  function changeAnchor(text: string) {
-    anchorTextRef.current = text;
-    setAnchorText(text);
+  function changeRows(next: PositionRow[]) {
+    rowsRef.current = next;
+    setRows(next);
   }
 
-  /** A time chip or a link with a start time becomes the post's position, unless one is already set. */
+  /** A time label in the text or a link with a start time becomes the post's first position, unless it has one already. */
   function adopt(label: string) {
-    if (!anchorTextRef.current.trim()) {
-      changeAnchor(label);
-      setMoreOpen(true);
-    }
+    if (rowsRef.current.length === 0) changeRows([{ id: newRowId(), position: label, note: "" }]);
   }
 
-  function recordTime() {
+  /** The player's current time, or null (with the reason shown) when it cannot be read. */
+  function currentTime(): number | null {
     const t = playerRef.current?.getCurrentTime();
     if (t == null) {
-      setError(TIME_HINT[provider ?? ""] ?? "这个播放器读不到当前时间：请手动输入，如 @12:34。");
-      return;
+      setError(TIME_HINT[provider ?? ""] ?? "这个播放器读不到当前时间：请手动输入，如 12:34。");
+      return null;
     }
     setError(null);
-    editorRef.current?.insertChip({ t });
+    return t;
+  }
+
+  /** "Record current time": a new position at the player's time, with the cursor in its description. */
+  function recordPosition() {
+    const t = currentTime();
+    if (t === null) return;
+    changeRows([...rowsRef.current, { id: newRowId(), position: formatTimestamp(Math.floor(t)), note: "", focus: "note" }]);
+  }
+
+  /** Alt+T while writing: a clickable time label at the cursor. */
+  function recordChip() {
+    const t = currentTime();
+    if (t !== null) editorRef.current?.insertChip({ t });
   }
 
   function seek(attrs: ChipAttrs) {
@@ -115,33 +120,20 @@ export function PostComposer({ post, presetTags = [] }: { post?: PostDetailData;
       return;
     }
 
-    const trimmed = anchorText.trim();
-    const parsed = trimmed ? parseAnchorText(trimmed) : null;
-    if (trimmed && !parsed) {
-      setError("位置格式不对。可以写 12:34、12:34-12:40、E5 12:34、p.132、ch.3 或 41%。");
+    const positions = rowsToAnchors(rows);
+    if (!positions.ok) {
+      setError(positions.error);
       return;
     }
-    const quoted = quote.trim();
-    if (quoted && !parsed) {
-      setError("摘录需要一个位置，比如页码 p.132。");
-      return;
-    }
-    if (quoted && Array.from(quoted).length > MAX_QUOTE_LENGTH) {
-      setError(`摘录最多 ${MAX_QUOTE_LENGTH} 字：只记引用，不转载。`);
-      return;
-    }
-    if (attached?.needsTitle && !attached.title.trim()) {
-      setError("这个链接需要手动填一个标题。");
-      return;
-    }
-    if (isEmpty && !attached && !parsed) {
+    const anchors = positions.anchors;
+    if (isEmpty && !attached && anchors.length === 0) {
       setError("先写点什么，或者贴一个链接。");
       return;
     }
 
     const input = {
       body: doc.current,
-      anchor: parsed ? { ...parsed, ...(quoted ? { quote: quoted } : {}) } : null,
+      anchors,
       source: attached
         ? {
             provider: attached.source.provider,
@@ -176,10 +168,13 @@ export function PostComposer({ post, presetTags = [] }: { post?: PostDetailData;
             handleRef={playerRef}
           />
           <div className="flex flex-wrap items-center gap-2">
-            <button type="button" className="btn btn-sm" onClick={recordTime}>
-              记录当前时间
-            </button>
-            <span className="text-xs text-muted">{TIME_HINT[provider!]}</span>
+            {/* only YouTube's player can tell us the time; Bilibili's cannot, so there is nothing to click there */}
+            {provider === "youtube" ? (
+              <button type="button" className="btn btn-sm" onClick={recordPosition}>
+                记录当前时间
+              </button>
+            ) : null}
+            <span className="min-w-0 flex-1 text-xs text-muted">{TIME_HINT[provider!]}</span>
           </div>
         </div>
       ) : null}
@@ -195,7 +190,7 @@ export function PostComposer({ post, presetTags = [] }: { post?: PostDetailData;
         }}
         onChipAdded={(attrs) => adopt(chipLabel(attrs))}
         onChipClick={seek}
-        onTimeShortcut={recordTime}
+        onTimeShortcut={recordChip}
         onSubmit={submit}
         onUploadingChange={setUploading}
       />
@@ -209,53 +204,7 @@ export function PostComposer({ post, presetTags = [] }: { post?: PostDetailData;
         <TagPicker value={tags} onChange={setTags} />
       </div>
 
-      <div>
-        <button type="button" className="text-xs text-muted underline underline-offset-2" onClick={() => setMoreOpen((v) => !v)}>
-          {moreOpen ? "收起位置与摘录" : "＋ 位置与摘录"}
-        </button>
-        {moreOpen ? (
-          <div className="mt-2 space-y-2 rounded-lg bg-sunken p-3">
-            <div>
-              <label className="block text-xs font-medium text-muted" htmlFor="anchor-text">
-                位置（视频时间、集数、页码）
-              </label>
-              <input
-                id="anchor-text"
-                className="input mt-1 !w-56"
-                value={anchorText}
-                onChange={(event) => changeAnchor(event.target.value)}
-                onPaste={(event) => {
-                  // a pasted video link with ?t= becomes its timestamp
-                  const parsed = parseAnchorText(event.clipboardData.getData("text"));
-                  if (parsed) {
-                    event.preventDefault();
-                    changeAnchor(anchorToText(parsed));
-                  }
-                }}
-                placeholder="12:34 · E5 12:34 · p.132"
-                autoComplete="off"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-muted" htmlFor="anchor-quote">
-                摘录（你自己摘的原文短句）
-                <span
-                  className={`float-right tabular-nums ${Array.from(quote).length > MAX_QUOTE_LENGTH ? "text-danger" : ""}`}
-                >
-                  {Array.from(quote).length}/{MAX_QUOTE_LENGTH}
-                </span>
-              </label>
-              <textarea
-                id="anchor-quote"
-                className="input mt-1 min-h-16"
-                value={quote}
-                onChange={(event) => setQuote(event.target.value)}
-                rows={2}
-              />
-            </div>
-          </div>
-        ) : null}
-      </div>
+      <PositionsEditor rows={rows} onChange={changeRows} />
 
       {error ? (
         <p role="alert" className="text-sm text-danger">

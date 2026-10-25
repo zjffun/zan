@@ -8,16 +8,16 @@ import { SourcePlayer } from "./players/SourcePlayer";
 import type { PlayerHandle } from "./players/types";
 import { RichHtml } from "./RichHtml";
 
-/** The post itself: its video or link, where in it the post is about, and the text. Time labels jump the player. */
+/** The post itself: its video or link, the positions it points at with their descriptions, and the text. Time labels jump the player. */
 export function PostBody({
   source,
   status,
-  anchor,
+  anchors,
   html,
 }: {
   source: PostSource | null;
   status: "ok" | "dead";
-  anchor: Anchor | null;
+  anchors: Anchor[];
   /** rendered on the server from the whitelist */
   html: string;
 }) {
@@ -29,21 +29,25 @@ export function PostBody({
 
   return (
     <div className="space-y-4">
-      {source ? <SourcePlayer source={{ ...source, status }} startAt={anchor?.t} handleRef={playerRef} /> : null}
+      {source ? (
+        <SourcePlayer source={{ ...source, status }} startAt={anchors.find((anchor) => anchor.t !== undefined)?.t} handleRef={playerRef} />
+      ) : null}
 
-      {anchor ? (
-        <div className="space-y-2">
-          {anchor.t !== undefined && source ? (
-            <button type="button" className="anchor-chip !m-0" title="跳到这里" onClick={() => seek({ t: anchor.t })}>
-              {anchorLabel(anchor)}
-            </button>
-          ) : (
-            <span className="anchor-chip !m-0 !cursor-default">{anchorLabel(anchor)}</span>
-          )}
-          {anchor.quote ? (
-            <blockquote className="border-l-[3px] border-line pl-3 text-sm italic text-muted">{anchor.quote}</blockquote>
-          ) : null}
-        </div>
+      {anchors.length > 0 ? (
+        <ul className="space-y-2">
+          {anchors.map((anchor, index) => (
+            <li key={index} className="flex items-baseline gap-2">
+              {anchor.t !== undefined && source ? (
+                <button type="button" className="anchor-chip !m-0 shrink-0" title="跳到这里" onClick={() => seek({ t: anchor.t })}>
+                  {anchorLabel(anchor)}
+                </button>
+              ) : (
+                <span className="anchor-chip !m-0 shrink-0 !cursor-default">{anchorLabel(anchor)}</span>
+              )}
+              {anchor.note ? <span className="min-w-0 whitespace-pre-line break-words text-sm">{anchor.note}</span> : null}
+            </li>
+          ))}
+        </ul>
       ) : null}
 
       <RichHtml html={html} onChip={seek} />

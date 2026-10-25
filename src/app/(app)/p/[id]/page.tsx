@@ -73,7 +73,7 @@ async function PostPage({ params }: Pick<PageProps<"/p/[id]">, "params">) {
       </header>
 
       <div className="mt-5">
-        <PostBody source={post.source} status={post.source_status} anchor={post.anchor} html={renderDocHtml(post.body)} />
+        <PostBody source={post.source} status={post.source_status} anchors={post.anchors} html={renderDocHtml(post.body)} />
       </div>
 
       {post.tags.length > 0 ? (

@@ -12,7 +12,7 @@ export interface ExportPost {
   tags: { name: string }[];
   source: PostSource | null;
   source_status?: "ok" | "dead";
-  anchor: Anchor | null;
+  anchors: Anchor[];
   body: unknown;
   plain_text: string;
 }
@@ -44,18 +44,16 @@ function renderPost(post: ExportPost, origin: string): string {
   if (post.tags.length > 0) lines.push(post.tags.map((tag) => `#${escapeMarkdown(tag.name.replace(/\s+/g, "_"))}`).join(" "), "");
   if (post.source) lines.push(`来源：${describeSource(post.source, post.source_status === "dead")}`, "");
 
-  if (post.anchor) {
-    const label = anchorLabel(post.anchor);
-    const href = anchorUrl(post.source, post.anchor);
-    lines.push(href ? `**[${label}](${href})**` : `**${escapeMarkdown(label)}**`, "");
-    if (post.anchor.quote) {
-      lines.push(
-        ...post.anchor.quote
-          .split(/\r?\n/)
-          .map((line) => `> ${escapeMarkdown(line)}`),
-        "",
-      );
+  if (post.anchors.length > 0) {
+    for (const anchor of post.anchors) {
+      const label = anchorLabel(anchor);
+      const href = anchorUrl(post.source, anchor);
+      const where = href ? `**[${label}](${href})**` : `**${escapeMarkdown(label)}**`;
+      // one line per position; a note with line breaks is folded into one line so that the list stays a list
+      const note = anchor.note?.replace(/\s+/g, " ").trim();
+      lines.push(note ? `- ${where} ${escapeMarkdown(note)}` : `- ${where}`);
     }
+    lines.push("");
   }
 
   const body = docToMarkdown(post.body, {

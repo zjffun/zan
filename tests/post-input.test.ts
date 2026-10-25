@@ -19,7 +19,7 @@ describe("preparePost", () => {
     if (!result.ok) return;
     expect(result.value).toMatchObject({
       plain_text: "今天看完了",
-      anchor: null,
+      anchors: [],
       source: null,
       visibility: "public",
       tagIds: [],
@@ -31,7 +31,7 @@ describe("preparePost", () => {
     const result = prepare({
       body: doc(para(text("看 "), chip({ t: 754 }), text(" 这里"))),
       source: yt,
-      anchor: { t: 754, quote: "一句话" },
+      anchors: [{ t: 754, note: "一句话" }, { page: 3 }],
       visibility: "private",
       tagIds: [uuid(1), uuid(1), uuid(2)],
       newTags: ["#孤独摇滚！", "孤独摇滚！", " 新标签 "],
@@ -39,11 +39,11 @@ describe("preparePost", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value.source).toEqual({ provider: "youtube", ref: { videoId: "dQw4w9WgXcQ" }, meta: { title: "OP 解析", author: "某某" } });
-    expect(result.value.anchor).toEqual({ t: 754, quote: "一句话" });
+    expect(result.value.anchors).toEqual([{ t: 754, note: "一句话" }, { page: 3 }]);
     expect(result.value.visibility).toBe("private");
     expect(result.value.tagIds).toEqual([uuid(1), uuid(2)]);
     expect(result.value.newTagNames).toEqual(["孤独摇滚！", "新标签"]);
-    // the label and the quote are searchable
+    // the label and the notes are searchable
     expect(result.value.plain_text).toBe("看 12:34 这里\n一句话");
   });
 
@@ -51,15 +51,21 @@ describe("preparePost", () => {
     expect(prepare({ body: doc() }).ok).toBe(false);
     expect(prepare({ body: doc(para(text("   "))) }).ok).toBe(false);
     expect(prepare({ body: doc(), source: yt }).ok).toBe(true);
-    expect(prepare({ body: doc(), anchor: { page: 132 } }).ok).toBe(true);
+    expect(prepare({ body: doc(), anchors: [{ page: 132 }] }).ok).toBe(true);
+    expect(prepare({ body: doc(), anchors: [] }).ok).toBe(false);
   });
 
   it("rejects bad input instead of storing it", () => {
     const body = doc(para(text("x")));
     expect(prepare({ body, source: { provider: "tiktok", ref: {} } }).ok).toBe(false);
     expect(prepare({ body, source: { provider: "youtube", ref: { videoId: "short" } } }).ok).toBe(false);
-    expect(prepare({ body, anchor: { t: -1 } }).ok).toBe(false);
-    expect(prepare({ body, anchor: { page: 1, quote: "字".repeat(201) } }).ok).toBe(false);
+    expect(prepare({ body, anchors: [{ t: -1 }] }).ok).toBe(false);
+    expect(prepare({ body, anchors: [{ page: 1, note: "字".repeat(201) }] }).ok).toBe(false);
+    expect(prepare({ body, anchors: [{ t: 1 }, { evil: true }] }).ok).toBe(false);
+    expect(prepare({ body, anchors: Array.from({ length: 21 }, (_, i) => ({ t: i })) }).ok).toBe(false);
+    expect(prepare({ body, anchors: { t: 1 } }).ok).toBe(false);
+    // the old single-position input is gone
+    expect(prepare({ body, anchor: { t: 1 } }).ok).toBe(true);
     expect(prepare({ body, visibility: "friends" }).ok).toBe(false);
     expect(prepare({ body, tagIds: ["not-a-uuid"] }).ok).toBe(false);
     expect(prepare({ body, newTags: ["a#b"] }).ok).toBe(false);

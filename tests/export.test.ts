@@ -44,7 +44,7 @@ describe("exportPostsMarkdown", () => {
     visibility: "public" as const,
     tags: [],
     source: null,
-    anchor: null,
+    anchors: [],
     body: doc(),
     plain_text: "",
     ...extra,
@@ -55,7 +55,7 @@ describe("exportPostsMarkdown", () => {
       post({
         tags: [{ name: "动漫" }, { name: "星际牛仔" }],
         source: { provider: yt.provider, ref: yt.ref, meta: yt.meta },
-        anchor: { t: 754, t_end: 760 },
+        anchors: [{ t: 754, t_end: 760, note: "转场" }, { t: 900 }],
         body: doc(para(text("这里的转场，对照 "), chip({ t: 900 }), text(" 的收尾"))),
         plain_text: "这里的转场，对照 15:00 的收尾",
       }),
@@ -68,7 +68,7 @@ describe("exportPostsMarkdown", () => {
       }),
       post({
         tags: [{ name: "读书 笔记" }],
-        anchor: { page: 132, quote: "一句话摘录" },
+        anchors: [{ page: 132, note: "一句话摘录" }, { page: 140, note: "第二处：\n换行 * 星号" }],
         body: doc(para(text("我的想法"))),
         plain_text: "我的想法",
       }),
@@ -87,7 +87,8 @@ _2026-10-24_
 
 来源：[OP 解析](https://youtu.be/dQw4w9WgXcQ) — YouTube · 某某 · 12:34
 
-**[12:34–12:40](https://youtu.be/dQw4w9WgXcQ?t=754)**
+- **[12:34–12:40](https://youtu.be/dQw4w9WgXcQ?t=754)** 转场
+- **[15:00](https://youtu.be/dQw4w9WgXcQ?t=900)**
 
 这里的转场，对照 [15:00](https://youtu.be/dQw4w9WgXcQ?t=900) 的收尾
 
@@ -105,9 +106,8 @@ _2026-10-24_
 
 #读书\\_笔记
 
-**p.132**
-
-> 一句话摘录
+- **p.132** 一句话摘录
+- **p.140** 第二处： 换行 \\* 星号
 
 我的想法
 

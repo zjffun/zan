@@ -10,12 +10,13 @@ zan 是“攒”：一个“只存引用，不存内容”的内容社区，看�
 
 - **首页是信息流**：打开就是大家发布的内容（瀑布流卡片），可以切到“关注”（你关注的标签下的内容），上面有热门标签；顶栏和首页顶部随时可以“新建”，没登录点“新建”会先去登录，再回到新建页
 - **新建分两类**
-  - **发布内容**：写文字（支持加粗、列表、链接等），可以贴 **YouTube** / **B 站**（含分 P、`?t=`、`b23.tv` 短链）或任意网页链接，带上位置（视频时间、集数、页码）和一句自己摘的短句；挂 0–5 个标签，选已有的，或现场新建；可见范围是“所有人”或“仅自己可见”（私人草稿）
+  - **发布内容**：写文字（支持加粗、列表、链接等），可以贴 **YouTube** / **B 站**（含分 P、`?t=`、`b23.tv` 短链）或任意网页链接，可以加**多个位置**（视频时间、集数、页码），每个位置写一句自己的描述（200 字以内）；挂 0–5 个标签，选已有的，或现场新建；可见范围是“所有人”或“仅自己可见”（私人草稿）
   - **新建标签**：从 **Bangumi**（动画、书、漫画、游戏、真人剧）或 **Open Library**（书，可按 ISBN）搜一部作品，名字、封面和类型自动带上；或者手动建一个话题标签
 - **图片**：在编辑器里直接 `Cmd/Ctrl + V` 粘贴截图或复制的图片，或把图片文件拖进来，或点工具栏的“图片”选文件；每条内容最多 9 张，不支持外链图片（Markdown 里写 `![](https://…)` 不会变成图片）
 - **位置标签**：编辑器里输入 `@12:34`、`p.132`、`E5@12:34` 加空格，自动变成可点击的标签
-  - YouTube：`Alt+T` 或“记录当前时间”，把播放器当前时间插进内容；点击时间标签，播放器跳转
-  - B 站：粘贴带 `?t=` 的链接，或手打 `12:34`；点击时间标签时带新的 `t` 重新加载播放器
+  - YouTube：“记录当前时间”按播放器的当前时间加一个位置（光标直接落在它的描述里），一边看一边记；写内容时按 `Alt+T`，会在光标处放一个可点击的时间标签；点击时间标签，播放器跳转
+  - B 站：播放器读不到当前时间，所以没有“记录当前时间”按钮：在“位置”里手输 `12:34`，或粘贴带 `?t=` 的链接；点击时间标签时带新的 `t` 重新加载播放器
+- **链接标题选填**：贴链接后会自动取标题，可以改，也可以清空；取不到（B 站常被限流）时留空也能发布，页面上显示平台名加视频号
 - **标签页**：每个标签有自己的页面（介绍、封面、内容数、关注数、关注按钮、“在这个标签下发布”），`/tags` 可以按类型、热度、名字浏览
 - **互动**：点赞、收藏（“我的收藏”）、评论和回复（一层）、关注标签；作者可以删除自己内容下的任何评论
 - **作者**：每个人有昵称、简介和主页；在“设置”里修改
@@ -119,7 +120,7 @@ npm run lint && npm run typecheck && npm run build
 
 - `profiles`：每个账号一份公开资料（昵称、简介），注册时由触发器生成默认昵称，昵称不区分大小写唯一
 - `tags`：任何人都能建；名字不区分大小写唯一，来自 Bangumi / Open Library 的标签用外部 ID 去重，名字、封面和类型由服务端向上游重新抓取，不信任客户端提交的内容；页面用随机短 `slug` 寻址，所以名字里可以有任何字符
-- `posts`：一条独立的内容。`body`（TipTap JSON）+ 抽出来的 `plain_text`（给搜索和卡片摘要用）、可选的 `source`（视频或链接的 ID 与元数据快照，视频被删后内容仍然看得懂）和 `anchor`（时间、页码、集数 + 不超过 200 字的摘录）、`visibility`（`public` / `private`）、点赞数和评论数
+- `posts`：一条独立的内容。`body`（TipTap JSON）+ 抽出来的 `plain_text`（给搜索和卡片摘要用）、可选的 `source`（视频或链接的 ID 与元数据快照，视频被删后内容仍然看得懂）和 `anchors`（位置列表，最多 20 个，每个是时间 / 集数 / 页码 / 章节 / 百分比 + 不超过 200 字的描述 `note`；[`0007_post_positions.sql`](supabase/migrations/0007_post_positions.sql) 把旧的单个 `anchor` 转了过来，旧列暂时留着，没有 `anchors` 的老内容还读它，之后可以再删）、`visibility`（`public` / `private`）、点赞数和评论数
 - `post_tags`：内容与标签的多对多，每条内容最多 5 个
 - `comments`（一层回复）、`likes`、`favorites`、`tag_follows`
 
@@ -167,7 +168,7 @@ npm run lint && npm run typecheck && npm run build
 - **Vercel**：导入仓库，设置上面的环境变量即可；[`vercel.json`](vercel.json) 里配置了每天一次的失效检测。注意 Vercel 免费档只允许非商业用途
 - **从本机用命令行部署**（不需要先把 GitHub 仓库连到 Vercel）：`npx vercel login`，`npx vercel link --project <名字>`，用 `printf %s "$值" | npx vercel env add 名字 -e production --sensitive` 逐个写入环境变量，再 `npx vercel deploy --prod`。[`vercel.json`](vercel.json) 把函数放在东京（`hnd1`），和 Supabase 的东京区域同区；换了数据库区域，这里也要改
 - **`package-lock.json` 里的下载地址必须是公网源**：锁文件里的 `resolved` 如果指向 Vercel 访问不到的地址，`npm install` 会直接失败。用 `npm install --registry=https://registry.npmjs.org/` 重新生成；`npm test` 里的 `tests/package-lock.test.ts` 会检查每一项都来自 `registry.npmjs.org`
-- **上线带图片功能的版本前**，先在 Supabase 的 SQL 编辑器里运行 [`0006_post_images.sql`](supabase/migrations/0006_post_images.sql) 建存储桶 `post-images`（可重复运行）；环境变量不用加。`/media/…` 的改写在构建时读 `SUPABASE_URL`，所以这个变量要在 Vercel 的构建环境里也有。Vercel 函数的请求体上限是 4.5 MB，所以上传限制在 3 MB 以内，靠浏览器先缩小
+- **上线带图片、多位置功能的版本前**，先在 Supabase 的 SQL 编辑器里按顺序运行 [`0006_post_images.sql`](supabase/migrations/0006_post_images.sql)（建存储桶 `post-images`，可重复运行）和 [`0007_post_positions.sql`](supabase/migrations/0007_post_positions.sql)（只增加列、不删旧列，所以先迁移、后部署，或反过来都不会让现有页面坏掉；不可重复运行）；环境变量不用加。`/media/…` 的改写在构建时读 `SUPABASE_URL`，所以这个变量要在 Vercel 的构建环境里也有。Vercel 函数的请求体上限是 4.5 MB，所以上传限制在 3 MB 以内，靠浏览器先缩小
 - **Supabase** 免费项目长时间不活跃会被暂停；有稳定用户后再升级。免费档存储 1 GB、单文件最大 50 MB
 - 限流和对外部网站的查询缓存：无服务器环境下建议配 Upstash Redis（环境变量见上），不配也能跑，但各实例各算各的，限额形同虚设，B 站更容易把我们拦掉
 - **登录 cookie**：HttpOnly（页面脚本读不到，浏览器里本来也没有 Supabase 客户端用它），SameSite=Lax，保存 30 天，每次令牌刷新（活跃时最多每小时一次）都会重新写成再 30 天，所以是“连续 30 天不来才掉线”，不是每 30 天登录一次；生产环境（`NODE_ENV=production`）一律加 Secure，所以必须走 https：用 `next start` 在非 localhost 的 http 地址上访问会存不住登录；开发环境（`npm run dev`）跟着请求走，http 的 localhost / 局域网不加 Secure（Safari 和非 localhost 地址会拒收 Secure cookie），经代理的 https 请求看 `x-forwarded-proto`。访问令牌 1 小时过期，刷新令牌默认不过期，想限制“多久不用就掉线”可以在 Supabase 后台设置会话超时

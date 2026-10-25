@@ -1,18 +1,20 @@
 import { z } from "zod";
 import { formatTimestamp, MAX_SECONDS } from "./time";
 
-/** A quote is a citation, not a reproduction: keep it short. */
-export const MAX_QUOTE_LENGTH = 200;
+/** What you say about a position stays a remark or a citation, never a reproduction: keep it short. */
+export const MAX_NOTE_LENGTH = 200;
+/** A post can point at this many positions. */
+export const MAX_POSITIONS = 20;
 
-/** Code points, to agree with Postgres' char_length() check on notes.anchor. */
+/** Code points, to agree with Postgres' char_length() check on posts.anchors. */
 const codePoints = (text: string) => Array.from(text).length;
 
 const seconds = z.number().int().min(0).max(MAX_SECONDS);
 
 /**
- * One shape for every kind of anchor:
- *   video          {"t":754,"t_end":760}
- *   book           {"page":132,"quote":"...","chapter":"3","percent":41}
+ * One shape for every kind of position (a post has a list of them, each with an optional note):
+ *   video          {"t":754,"t_end":760,"note":"开场"}
+ *   book           {"page":132,"note":"...","chapter":"3","percent":41}
  *   episode        {"ep":5,"t":754}
  */
 export const anchorSchema = z
@@ -23,12 +25,12 @@ export const anchorSchema = z
     page: z.number().int().min(1).max(99999).optional(),
     chapter: z.string().trim().min(1).max(100).optional(),
     percent: z.number().min(0).max(100).optional(),
-    quote: z
+    note: z
       .string()
       .trim()
       .min(1)
-      .refine((q) => codePoints(q) <= MAX_QUOTE_LENGTH, {
-        message: `quote must be at most ${MAX_QUOTE_LENGTH} characters`,
+      .refine((q) => codePoints(q) <= MAX_NOTE_LENGTH, {
+        message: `note must be at most ${MAX_NOTE_LENGTH} characters`,
       })
       .optional(),
   })
@@ -54,6 +56,27 @@ export function parseAnchor(input: unknown): Anchor | null {
   return anchorSchema.parse(input);
 }
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+/**
+ * The positions of a stored post. `anchors` is the list; posts from before the list existed have only
+ * the old single `anchor` (whose "quote" is now the "note"), which is used while the list is empty.
+ * Entries that do not validate are dropped rather than failing the whole page.
+ */
+export function readAnchors(anchors: unknown, legacy: unknown = null): Anchor[] {
+  if (Array.isArray(anchors) && anchors.length > 0) {
+    return anchors.slice(0, MAX_POSITIONS).flatMap((item) => {
+      const parsed = anchorSchema.safeParse(item);
+      return parsed.success ? [parsed.data] : [];
+    });
+  }
+  if (!isRecord(legacy)) return [];
+  const { quote, ...rest } = legacy;
+  const parsed = anchorSchema.safeParse(quote !== undefined && rest.note === undefined ? { ...rest, note: quote } : legacy);
+  return parsed.success ? [parsed.data] : [];
+}
+
 /**
  * Short human label: "12:34", "12:34–12:40", "p.132", "E5 12:34", "ch.3", "41%".
  * `rangeSeparator` lets `anchorToText` produce the ASCII form people type.
@@ -74,6 +97,13 @@ export function anchorLabel(anchor: Anchor, rangeSeparator = "–"): string {
     parts.push(`${Math.round(anchor.percent * 10) / 10}%`);
   }
   return parts.join(" ");
+}
+
+/** One label for a whole list of positions: the first one, and how many more there are ("12:34 等 3 处"). */
+export function anchorsLabel(anchors: Anchor[]): string {
+  if (anchors.length === 0) return "";
+  const first = anchorLabel(anchors[0]);
+  return anchors.length > 1 ? `${first} 等 ${anchors.length} 处` : first;
 }
 
 /** Orders anchors the way you consume the work: episode, then position. */

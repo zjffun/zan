@@ -122,7 +122,7 @@ async function resolveYouTube(link: Extract<ParsedLink, { provider: "youtube" }>
         value: {
           source: parseSourceInput({ provider: "youtube", ref: { videoId: link.videoId }, meta: null }),
           t,
-          warnings: ["暂时拿不到视频信息（YouTube 没有响应），请手动填写标题。"],
+          warnings: ["暂时拿不到视频信息（YouTube 没有响应）：标题可以自己写，也可以不填。"],
           needsTitle: true,
         },
       };
@@ -223,7 +223,7 @@ async function resolveBilibili(link: Extract<ParsedLink, { provider: "bilibili" 
         value: {
           source: parseSourceInput({ provider: "bilibili", ref, meta: null }),
           t: link.t,
-          warnings: ["暂时拿不到视频信息（B 站接口限流或拒绝了请求），请手动填写标题。"],
+          warnings: ["暂时拿不到视频信息（B 站接口限流或拒绝了请求）：标题可以自己写，也可以不填。"],
           needsTitle: true,
         },
       };

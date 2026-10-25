@@ -487,6 +487,28 @@ select t.ok(t.rows($$ insert into public.posts (body, anchor) values ('{}', json
 select t.raises($$ insert into public.posts (body, plain_text, anchor) values ('{}', 'x', '[]') $$, 'anchor must be an object (array)', '23514');
 select t.raises($$ insert into public.posts (body, plain_text, anchor) values ('{}', 'x', '5') $$, 'anchor must be an object (number)', '23514');
 
+-- positions: a list, each with an optional note (migration 0007)
+select t.ok((select anchors from public.posts where plain_text = 'a fresh note') = '[]'::jsonb, 'a post starts with no positions');
+select t.ok(t.rows($$ insert into public.posts (body, anchors) values ('{}', '[{"t":12,"note":"开场"},{"t":900,"t_end":960},{"page":132,"note":"x"}]') $$) = 1,
+  'a post can be just a list of positions');
+select t.ok(t.rows($$ insert into public.posts (body, anchors) values ('{}', jsonb_build_array(jsonb_build_object('page', 1, 'note', repeat('攒', 200)))) $$) = 1,
+  'a 200 character note is fine, counted in characters');
+select t.raises($$ insert into public.posts (body, anchors) values ('{}', jsonb_build_array(jsonb_build_object('page', 1, 'note', repeat('q', 201)))) $$,
+  'a note over 200 characters is rejected', '23514');
+select t.raises($$ insert into public.posts (body, anchors) values ('{}', jsonb_build_array(jsonb_build_object('t', 1, 'note', 'ok'), jsonb_build_object('t', 2, 'note', repeat('q', 201)))) $$,
+  'every note is checked, not only the first', '23514');
+select t.raises($$ insert into public.posts (body, plain_text, anchors) values ('{}', 'x', '{"t":1}') $$, 'anchors must be an array (object)', '23514');
+select t.raises($$ insert into public.posts (body, plain_text, anchors) values ('{}', 'x', '5') $$, 'anchors must be an array (number)', '23514');
+select t.raises($$ insert into public.posts (body, plain_text, anchors) values ('{}', 'x', '[5]') $$, 'every position must be an object (number)', '23514');
+select t.raises($$ insert into public.posts (body, plain_text, anchors) values ('{}', 'x', '[[1]]') $$, 'every position must be an object (array)', '23514');
+select t.raises($$ insert into public.posts (body, plain_text, anchors) values ('{}', 'x', null) $$, 'anchors cannot be null', '23502');
+select t.ok(t.rows($$ insert into public.posts (body, anchors) select '{}', jsonb_agg(jsonb_build_object('t', n)) from generate_series(1, 20) n $$) = 1,
+  'twenty positions are fine');
+select t.raises($$ insert into public.posts (body, anchors) select '{}', jsonb_agg(jsonb_build_object('t', n)) from generate_series(1, 21) n $$,
+  'twenty-one positions are too many', '23514');
+select t.raises($$ insert into public.posts (body, plain_text, anchors) values ('{}', '', '[]') $$,
+  'no text, no source and no positions is still an empty post', '23514');
+
 -- source, body, text, visibility
 select t.raises($$ insert into public.posts (body, plain_text, source) values ('{}', 'x', '[]') $$, 'source must be an object', '23514');
 select t.raises($$ insert into public.posts (body, plain_text, source) values ('{}', 'x', '"https://example.com"') $$,
