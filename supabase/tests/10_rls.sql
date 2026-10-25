@@ -476,6 +476,16 @@ select t.raises($$ insert into public.posts (body) values ('{}') $$, 'a post wit
 select t.raises($$ insert into public.posts (body, plain_text, source) values ('{}', '', null) $$,
   'explicit nulls are rejected too', '23514');
 
+-- the picture a feed card shows (migration 0012)
+select t.ok(t.rows($$ insert into public.posts (body, plain_text, cover_image)
+                      values ('{}', 'with a cover', '00000000-0000-0000-0000-00000000000a/11111111-1111-1111-1111-111111111111.webp') $$) = 1,
+  'a post can carry the key of its first picture');
+select t.raises($$ insert into public.posts (body, plain_text, cover_image) values ('{}', 'x', 'https://example.com/x.png') $$,
+  'but only a key of ours, not an address', '23514');
+select t.raises($$ insert into public.posts (body, plain_text, cover_image) values ('{}', 'x', '../../etc/passwd') $$,
+  'nor a path', '23514');
+select t.ok((select cover_image is null from public.posts where plain_text = 'a fresh note'), 'and it is empty by default');
+
 -- the lists of positions are gone (migrations 0010 and 0011): a position is a line of text now
 select t.ok(not exists (select 1 from information_schema.columns
                          where table_schema = 'public' and table_name = 'posts' and column_name in ('anchor', 'anchors')),

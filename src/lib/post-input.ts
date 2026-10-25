@@ -2,15 +2,14 @@ import { z } from "zod";
 import { collectImages } from "./doc/images";
 import { DocError, sanitizeComment, sanitizeDoc, type DocNode } from "./doc/schema";
 import { docToPlainText } from "./doc/text";
-import { MAX_POST_IMAGES, parseImageKey } from "./image";
+import { IMAGE_ONLY_TEXT, MAX_POST_IMAGES, parseImageKey } from "./image";
 import { parseSourceInput } from "./sources";
 import { normalizeTagName, tagKey } from "./tag-name";
 import type { PostSource, Visibility } from "./types";
 
 export const MAX_POST_TAGS = 5;
 export const MAX_PLAIN_TEXT = 20_000;
-/** The searchable text of a post that is only pictures (the database wants a post to have some text, a video or a position). */
-export const IMAGE_ONLY_TEXT = "[图片]";
+export { IMAGE_ONLY_TEXT };
 
 /** What the composer sends; everything in it is untrusted. */
 export const postInputSchema = z.object({
@@ -28,6 +27,8 @@ export type PostInput = z.input<typeof postInputSchema>;
 export interface PreparedPost {
   body: DocNode;
   plain_text: string;
+  /** key of the first picture in the text: what a feed card shows (see migration 0012) */
+  cover_image: string | null;
   source: PostSource | null;
   visibility: Visibility;
   tagIds: string[];
@@ -92,7 +93,7 @@ export function preparePost(raw: unknown, author: string): PrepareResult {
 
   return {
     ok: true,
-    value: { body, plain_text: text, source, visibility: input.visibility, tagIds, newTagNames: names },
+    value: { body, plain_text: text, cover_image: images[0]?.key ?? null, source, visibility: input.visibility, tagIds, newTagNames: names },
   };
 }
 

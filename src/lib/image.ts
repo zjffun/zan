@@ -8,6 +8,8 @@
 
 export const IMAGE_BUCKET = "post-images";
 export const MAX_POST_IMAGES = 9;
+/** The searchable text of a post that is only pictures (the database wants a post to have some text or a video). */
+export const IMAGE_ONLY_TEXT = "[图片]";
 
 /** What the server accepts. The browser shrinks pictures to a few hundred KB first. */
 export const MAX_UPLOAD_BYTES = 3 * 1024 * 1024;

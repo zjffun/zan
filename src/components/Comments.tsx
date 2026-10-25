@@ -13,6 +13,7 @@ import type { CommentData } from "@/lib/types";
 import { Avatar } from "./Avatar";
 import type { NoteEditorHandle } from "./editor/NoteEditor";
 import { usePlayer } from "./players/player-context";
+import { RelativeTime } from "./RelativeTime";
 import { RichHtml } from "./RichHtml";
 
 // The editor is most of what a post's author needs and nothing a reader does: it is fetched when somebody starts writing.
@@ -71,9 +72,7 @@ export function Comments({
               {comment.author.nickname}
             </Link>
             {comment.author.id === postAuthorId ? <span className="chip ml-1.5">作者</span> : null}
-            <time className="ml-2" dateTime={comment.created_at}>
-              {timeFormat.format(new Date(comment.created_at))}
-            </time>
+            <RelativeTime className="ml-2" iso={comment.created_at} title={timeFormat.format(new Date(comment.created_at))} />
           </p>
           <RichHtml html={comment.html} onChip={seek} className="comment-body mt-0.5" />
           <p className="mt-1 flex gap-3 text-xs text-muted">

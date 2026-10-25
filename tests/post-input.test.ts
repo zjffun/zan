@@ -108,6 +108,14 @@ describe("preparePost with images", () => {
     expect(withText.ok && withText.value.plain_text).toBe("看图");
   });
 
+  it("remembers the first picture in reading order, for the feed card", () => {
+    const nested = { type: "blockquote", content: [img(key(AUTHOR, 1))] };
+    const result = prepare({ body: doc(para(text("先写字")), nested, img(key(AUTHOR, 2))) });
+    expect(result.ok && result.value.cover_image).toBe(key(AUTHOR, 1));
+    const none = prepare({ body: doc(para(text("没有图"))) });
+    expect(none.ok && none.value.cover_image).toBeNull();
+  });
+
   it("allows at most nine images", () => {
     const nine = Array.from({ length: 9 }, (_, i) => img(key(AUTHOR, i)));
     expect(prepare({ body: doc(...nine) }).ok).toBe(true);

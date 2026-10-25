@@ -1,6 +1,6 @@
 import "server-only";
 import { cacheLife, cacheTag } from "next/cache";
-import { excerptOf, FEED_PAGE_SIZE } from "./feed";
+import { FEED_PAGE_SIZE, teaserOf } from "./feed";
 import { createAnonClient } from "./supabase/anon";
 import { createClient } from "./supabase/server";
 import { commentHtml } from "./comment-html";
@@ -14,7 +14,7 @@ import { TAG_KINDS, type AuthorRef, type CommentData, type PostCardData, type Po
  */
 
 const CARD_SELECT =
-  "id, plain_text, source, source_status, visibility, like_count, comment_count, created_at, " +
+  "id, plain_text, cover_image, source, source_status, visibility, like_count, comment_count, created_at, " +
   "author:profiles(id, nickname), post_tags(tag:tags(id, slug, name, kind))";
 
 const DETAIL_SELECT = `${CARD_SELECT}, body, updated_at`;
@@ -29,6 +29,7 @@ interface RawTag {
 interface RawPost {
   id: string;
   plain_text: string;
+  cover_image: string | null;
   body?: unknown;
   source: PostSource | null;
   source_status: "ok" | "dead";
@@ -62,7 +63,8 @@ function toCard(row: RawPost): PostCardData {
   return {
     id: row.id,
     author: row.author ?? GONE_AUTHOR,
-    excerpt: excerptOf(row.plain_text),
+    excerpt: teaserOf(row.plain_text),
+    cover: row.cover_image,
     source: row.source,
     source_status: row.source_status,
     visibility: row.visibility,

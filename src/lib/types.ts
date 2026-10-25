@@ -74,6 +74,8 @@ export interface PostCardData {
   id: string;
   author: AuthorRef;
   excerpt: string;
+  /** key of the first picture of the post, if it has one (shown when there is no video) */
+  cover: string | null;
   source: PostSource | null;
   source_status: "ok" | "dead";
   visibility: Visibility;

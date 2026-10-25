@@ -1,13 +1,15 @@
-/* eslint-disable @next/next/no-img-element -- video thumbnails come from third-party hosts that block hotlinking */
+/* eslint-disable @next/next/no-img-element -- video thumbnails come from third-party hosts that block hotlinking; pictures are already scaled down when they are uploaded */
 import Link from "next/link";
+import { IMAGE_ONLY_TEXT, mediaPath } from "@/lib/image";
 import { PROVIDER_LABEL, sourceTitle } from "@/lib/sources";
 import type { PostCardData } from "@/lib/types";
 import { Avatar } from "./Avatar";
 import { CommentIcon, LockIcon, PlayIcon } from "./icons";
 import { LikeButton } from "./LikeButton";
+import { RelativeTime } from "./RelativeTime";
 import { TagChip } from "./TagChip";
 
-const dateFormat = new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeZone: "Asia/Shanghai" });
+const dateTimeFormat = new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Shanghai" });
 
 /**
  * One post in a feed: a thumbnail if it points at a video, a teaser of the
@@ -20,10 +22,12 @@ export function PostCard({ post, liked, signedIn }: { post: PostCardData; liked:
   const thumbnail = source?.meta?.thumbnail;
   const title = source ? sourceTitle(source) : "";
   const dead = post.source_status === "dead";
+  // a post that is only a picture has "[图片]" for its text: the picture says it better
+  const excerpt = post.cover && post.excerpt === IMAGE_ONLY_TEXT ? "" : post.excerpt;
 
   return (
     <article className="card relative mb-3 break-inside-avoid overflow-hidden transition-colors hover:bg-sunken">
-      <Link href={`/p/${post.id}`} className="absolute inset-0 z-10" aria-label={post.excerpt || title || "查看详情"} />
+      <Link href={`/p/${post.id}`} className="absolute inset-0 z-10" aria-label={excerpt.replace(/\s+/g, " ") || title || (post.cover ? "查看图片" : "查看详情")} />
 
       {thumbnail ? (
         <div className="relative aspect-video bg-sunken">
@@ -42,11 +46,15 @@ export function PostCard({ post, liked, signedIn }: { post: PostCardData; liked:
             <span className="absolute right-2 top-2 rounded-full bg-black/60 px-2 py-0.5 text-xs text-white">视频已失效</span>
           ) : null}
         </div>
+      ) : post.cover ? (
+        <div className="relative aspect-video bg-sunken">
+          <img src={mediaPath(post.cover)} alt="" loading="lazy" decoding="async" className="size-full object-cover" />
+        </div>
       ) : null}
 
       <div className="space-y-2 p-3.5">
-        {post.excerpt ? (
-          <p className={`whitespace-pre-line break-words text-sm ${thumbnail ? "line-clamp-3" : "line-clamp-6"}`}>{post.excerpt}</p>
+        {excerpt ? (
+          <p className={`whitespace-pre-line break-words text-sm ${thumbnail || post.cover ? "line-clamp-3" : "line-clamp-6"}`}>{excerpt}</p>
         ) : null}
         {source && !thumbnail ? (
           <p className="truncate text-xs text-muted">
@@ -74,9 +82,7 @@ export function PostCard({ post, liked, signedIn }: { post: PostCardData; liked:
             <Avatar id={post.author.id} name={post.author.nickname} size="sm" />
             <span className="truncate">{post.author.nickname}</span>
           </Link>
-          <time className="shrink-0" dateTime={post.created_at}>
-            {dateFormat.format(new Date(post.created_at))}
-          </time>
+          <RelativeTime className="shrink-0" iso={post.created_at} title={dateTimeFormat.format(new Date(post.created_at))} />
           <span className="ml-auto flex shrink-0 items-center gap-3">
             <span className="inline-flex items-center gap-1 tabular-nums" title="评论">
               <CommentIcon className="size-4" />

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildHref, excerptOf, FEED_MAX_PAGE, parseFeedTab, parsePage } from "@/lib/feed";
+import { buildHref, excerptOf, FEED_MAX_PAGE, parseFeedTab, parsePage, teaserOf } from "@/lib/feed";
 
 describe("parsePage", () => {
   it("defaults to the first page and accepts real page numbers", () => {
@@ -62,5 +62,22 @@ describe("excerptOf", () => {
     // an emoji is one character, never half of a surrogate pair
     expect(excerptOf("😀".repeat(200))).toBe(`${"😀".repeat(140)}…`);
     expect(excerptOf("abcdef", 3)).toBe("abc…");
+  });
+});
+
+describe("teaserOf", () => {
+  it("is empty when there is no text", () => {
+    expect(teaserOf(null)).toBe("");
+    expect(teaserOf(" \n \n")).toBe("");
+  });
+
+  it("keeps the lines of a post as lines, with their own spaces tidied", () => {
+    expect(teaserOf("第一行\n\n  第二   行\n第三行")).toBe("第一行\n第二 行\n第三行");
+  });
+
+  it("cuts on a character boundary and does not leave a space before the dots", () => {
+    expect(teaserOf("字".repeat(300))).toBe(`${"字".repeat(140)}…`);
+    expect(teaserOf("abc def", 4)).toBe("abc…");
+    expect(teaserOf("😀".repeat(200))).toBe(`${"😀".repeat(140)}…`);
   });
 });

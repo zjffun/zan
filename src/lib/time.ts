@@ -37,3 +37,27 @@ export function parseTimeParam(text: string | null | undefined): number | null {
     Number(match[1] ?? 0) * 3600 + Number(match[2] ?? 0) * 60 + Math.floor(Number(match[3] ?? 0));
   return Number.isFinite(total) && total <= MAX_SECONDS ? total : null;
 }
+
+const minute = 60_000;
+const hour = 60 * minute;
+const day = 24 * hour;
+
+const dateOnly = new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeZone: "Asia/Shanghai" });
+
+/** "2026年10月25日": the same on the server and in the browser, whatever their clocks and zones. */
+export function formatDate(iso: string): string {
+  return dateOnly.format(new Date(iso));
+}
+
+/**
+ * How long ago, the way a feed says it: "刚刚", "5 分钟前", "3 小时前", "2 天前"; after a week the date
+ * itself. A time in the future (a clock that is a little off) is "刚刚".
+ */
+export function formatRelative(iso: string, now: number): string {
+  const age = Math.max(0, now - new Date(iso).getTime());
+  if (age < minute) return "刚刚";
+  if (age < hour) return `${Math.floor(age / minute)} 分钟前`;
+  if (age < day) return `${Math.floor(age / hour)} 小时前`;
+  if (age < 7 * day) return `${Math.floor(age / day)} 天前`;
+  return formatDate(iso);
+}

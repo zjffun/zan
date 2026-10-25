@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatTimestamp, parseClock, parseTimeParam } from "@/lib/time";
+import { formatDate, formatRelative, formatTimestamp, parseClock, parseTimeParam } from "@/lib/time";
 
 describe("formatTimestamp", () => {
   it("formats minutes and hours", () => {
@@ -42,5 +42,33 @@ describe("parseTimeParam", () => {
     expect(parseTimeParam("abc")).toBeNull();
     expect(parseTimeParam("-5")).toBeNull();
     expect(parseTimeParam("9999999")).toBeNull();
+  });
+});
+
+describe("formatRelative", () => {
+  const now = Date.parse("2026-10-25T12:00:00Z");
+  const ago = (ms: number) => new Date(now - ms).toISOString();
+  const minute = 60_000;
+  const hour = 60 * minute;
+  const day = 24 * hour;
+
+  it("says how long ago, in the unit that fits", () => {
+    expect(formatRelative(ago(5_000), now)).toBe("刚刚");
+    expect(formatRelative(ago(59_999), now)).toBe("刚刚");
+    expect(formatRelative(ago(minute), now)).toBe("1 分钟前");
+    expect(formatRelative(ago(59 * minute), now)).toBe("59 分钟前");
+    expect(formatRelative(ago(hour), now)).toBe("1 小时前");
+    expect(formatRelative(ago(23 * hour + 59 * minute), now)).toBe("23 小时前");
+    expect(formatRelative(ago(day), now)).toBe("1 天前");
+    expect(formatRelative(ago(6 * day + 23 * hour), now)).toBe("6 天前");
+  });
+
+  it("gives the date after a week", () => {
+    expect(formatRelative(ago(7 * day), now)).toBe(formatDate(ago(7 * day)));
+    expect(formatDate("2026-10-24T08:00:00Z")).toBe("2026年10月24日");
+  });
+
+  it("does not say anything odd about a time a little in the future", () => {
+    expect(formatRelative(new Date(now + 30_000).toISOString(), now)).toBe("刚刚");
   });
 });

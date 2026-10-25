@@ -35,7 +35,21 @@ export function buildHref(path: string, params: Record<string, string | number |
   return query ? `${path}?${query}` : path;
 }
 
-/** A card's teaser: the first lines of a post, flattened and cut on a character boundary. */
+/**
+ * What a card shows of a post: its first lines, one per line (the text of a post is one block per
+ * line already), at most `max` characters, cut on a character boundary. The card clamps how many lines show.
+ */
+export function teaserOf(plainText: string | null | undefined, max = EXCERPT_LENGTH): string {
+  const text = (plainText ?? "")
+    .split("\n")
+    .map((line) => line.replace(/\s+/g, " ").trim())
+    .filter(Boolean)
+    .join("\n");
+  const chars = Array.from(text);
+  return chars.length > max ? `${chars.slice(0, max).join("").trimEnd()}…` : text;
+}
+
+/** A one-line teaser: the first lines of a post, flattened and cut on a character boundary. */
 export function excerptOf(plainText: string | null | undefined, max = EXCERPT_LENGTH): string {
   const text = (plainText ?? "").replace(/\s+/g, " ").trim();
   const chars = Array.from(text);

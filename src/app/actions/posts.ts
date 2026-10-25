@@ -36,6 +36,7 @@ function columns(prepared: PreparedPost) {
   return {
     body: prepared.body,
     plain_text: prepared.plain_text,
+    cover_image: prepared.cover_image,
     source: prepared.source,
     visibility: prepared.visibility,
   };
