@@ -897,6 +897,29 @@ select t.raises($$ insert into public.comments (post_id, body) values ('60000000
   'a comment needs a body', '23502');
 rollback;
 
+-- the rich document that goes with a comment's text
+begin;
+select set_config('request.jwt.claims', json_build_object('sub', :B::text)::text, true);
+set local role authenticated;
+select t.ok(t.rows($$ insert into public.comments (post_id, body, doc)
+                      values ('60000000-0000-0000-0000-0000000000c1', 'bold',
+                              '{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"bold","marks":[{"type":"bold"}]}]}]}') $$) = 1,
+  'a comment can come with its document');
+select t.raises($$ insert into public.comments (post_id, body, doc) values ('60000000-0000-0000-0000-0000000000c1', 'array', '[]') $$,
+  'the document must be an object', '23514');
+select t.raises($$ insert into public.comments (post_id, body, doc)
+                   values ('60000000-0000-0000-0000-0000000000c1', 'huge', jsonb_build_object('type', 'doc', 'x', repeat('x', 60000))) $$,
+  'and not huge', '23514');
+select t.raises($$ update public.comments set doc = '{"type":"doc"}' where body = 'bold' $$,
+  'the document cannot be changed afterwards', '42501');
+rollback;
+
+begin;
+set local role anon;
+select t.raises($$ insert into public.comments (post_id, body, doc) values ('60000000-0000-0000-0000-0000000000c1', 'anon', '{"type":"doc"}') $$,
+  'anon cannot write a document', '42501');
+rollback;
+
 -- replies: one level, same post
 begin;
 select set_config('request.jwt.claims', json_build_object('sub', :C::text)::text, true);

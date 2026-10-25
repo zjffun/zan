@@ -65,6 +65,21 @@ const CHILDREN: Record<string, readonly string[]> = {
   text: [],
 };
 
+/** What a note and what a comment may contain: a comment is a small thing, with no pictures or headings. */
+const COMMENT_BLOCKS = ["paragraph", "blockquote", "bulletList", "orderedList", "codeBlock"] as const;
+
+/** Parents whose children are blocks: which blocks those are depends on what the document is for. */
+const BLOCK_PARENTS = new Set(["doc", "blockquote", "listItem"]);
+
+interface Profile {
+  blocks: readonly string[];
+  maxNodes: number;
+  maxDepth: number;
+}
+
+const NOTE_PROFILE: Profile = { blocks: BLOCKS, maxNodes: MAX_NODES, maxDepth: MAX_DEPTH };
+const COMMENT_PROFILE: Profile = { blocks: COMMENT_BLOCKS, maxNodes: 500, maxDepth: 6 };
+
 /** Nodes that are invalid when they end up with no children. */
 const NEEDS_CONTENT = new Set(["blockquote", "bulletList", "orderedList", "listItem"]);
 
@@ -149,7 +164,11 @@ function cleanMarks(marks: unknown): DocMark[] | undefined {
 
 interface Budget {
   nodes: number;
+  profile: Profile;
 }
+
+const childrenOf = (parent: string, budget: Budget): readonly string[] | undefined =>
+  BLOCK_PARENTS.has(parent) ? budget.profile.blocks : CHILDREN[parent];
 
 /**
  * A line break inside a paragraph or heading (Shift+Enter, or a <br> in pasted text) would look unlike
@@ -169,7 +188,7 @@ function breaksToParagraphs(node: DocNode, budget: Budget): DocNode[] {
     else lines[lines.length - 1].push(child);
   }
   budget.nodes += lines.length - 1;
-  if (budget.nodes > MAX_NODES) throw new DocError("document is too large");
+  if (budget.nodes > budget.profile.maxNodes) throw new DocError("document is too large");
   return lines.map((line) => {
     const piece: DocNode = { type: node.type };
     if (node.attrs) piece.attrs = { ...node.attrs };
@@ -181,9 +200,9 @@ function breaksToParagraphs(node: DocNode, budget: Budget): DocNode[] {
 function cleanNode(raw: unknown, parent: string, depth: number, budget: Budget): DocNode | null {
   if (!isRecord(raw) || typeof raw.type !== "string") return null;
   const type = raw.type;
-  if (!(type in CHILDREN) || type === "doc" || !CHILDREN[parent]?.includes(type)) return null;
-  if (depth > MAX_DEPTH) throw new DocError("document is nested too deeply");
-  if (++budget.nodes > MAX_NODES) throw new DocError("document is too large");
+  if (!(type in CHILDREN) || type === "doc" || !childrenOf(parent, budget)?.includes(type)) return null;
+  if (depth > budget.profile.maxDepth) throw new DocError("document is nested too deeply");
+  if (++budget.nodes > budget.profile.maxNodes) throw new DocError("document is too large");
 
   if (type === "text") {
     if (typeof raw.text !== "string" || raw.text.length === 0) return null;
@@ -217,7 +236,7 @@ function cleanNode(raw: unknown, parent: string, depth: number, budget: Budget):
     node.attrs = { start: start ?? 1 };
   }
 
-  const allowed = CHILDREN[type];
+  const allowed = childrenOf(type, budget) ?? [];
   if (allowed.length > 0 && Array.isArray(raw.content)) {
     const content: DocNode[] = [];
     for (const child of raw.content) {
@@ -242,7 +261,7 @@ function withPositionLabels(content: DocNode[], budget: Budget): DocNode[] {
   for (const node of content) {
     if (node.type === "anchorChip" && (node.attrs?.ep !== undefined || node.attrs?.page !== undefined)) {
       const { ep, page, t } = node.attrs as ChipAttrs;
-      if (++budget.nodes > MAX_NODES) throw new DocError("document is too large");
+      if (++budget.nodes > budget.profile.maxNodes) throw new DocError("document is too large");
       out.push({ type: "text", text: `${anchorLabel({ ep, page })} ` }, { type: "anchorChip", attrs: { t } });
       continue;
     }
@@ -255,7 +274,7 @@ function withPositionLabels(content: DocNode[], budget: Budget): DocNode[] {
       if ("chip" in piece) {
         const attrs = cleanChipAttrs(piece.chip);
         if (!attrs) continue;
-        if (++budget.nodes > MAX_NODES) throw new DocError("document is too large");
+        if (++budget.nodes > budget.profile.maxNodes) throw new DocError("document is too large");
         out.push({ type: "anchorChip", attrs: { ...attrs } });
       } else {
         out.push(node.marks ? { type: "text", text: piece.text, marks: node.marks } : { type: "text", text: piece.text });
@@ -273,8 +292,17 @@ export const EMPTY_DOC: DocNode = { type: "doc", content: [] };
  * absurdly large/deep. Never throws on unknown nodes: they are dropped.
  */
 export function sanitizeDoc(input: unknown): DocNode {
+  return sanitize(input, NOTE_PROFILE);
+}
+
+/** The same for a comment: paragraphs, quotes, lists and code, and nothing larger than a comment should be. */
+export function sanitizeComment(input: unknown): DocNode {
+  return sanitize(input, COMMENT_PROFILE);
+}
+
+function sanitize(input: unknown, profile: Profile): DocNode {
   if (!isRecord(input) || input.type !== "doc") throw new DocError("not a document");
-  const budget: Budget = { nodes: 0 };
+  const budget: Budget = { nodes: 0, profile };
   const content: DocNode[] = [];
   if (Array.isArray(input.content)) {
     for (const child of input.content) {

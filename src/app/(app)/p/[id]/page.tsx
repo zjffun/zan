@@ -8,6 +8,7 @@ import { CopyLinkButton } from "@/components/CopyLinkButton";
 import { FavoriteButton } from "@/components/FavoriteButton";
 import { LockIcon } from "@/components/icons";
 import { LikeButton } from "@/components/LikeButton";
+import { PlayerProvider } from "@/components/players/player-context";
 import { PostBody } from "@/components/PostBody";
 import { PostMenu } from "@/components/PostMenu";
 import { TagChip } from "@/components/TagChip";
@@ -69,71 +70,74 @@ async function PostPage({ params }: Pick<PageProps<"/p/[id]">, "params">) {
   if (!post) notFound();
 
   const user = await getCurrentUser();
-  const [comments, state] = await Promise.all([getComments(id), getViewerState([id], user?.id ?? null)]);
+  const seekable = canSeek(post.source, post.source_status);
+  const [comments, state] = await Promise.all([getComments(id, seekable), getViewerState([id], user?.id ?? null)]);
   const isAuthor = user?.id === post.author.id;
 
   return (
-    <article>
-      <header className="flex items-center gap-3">
-        {/* the same link as the name beside it: only for the eye, not for screen readers or the Tab key */}
-        <Link href={`/u/${post.author.id}`} aria-hidden="true" tabIndex={-1}>
-          <Avatar id={post.author.id} name={post.author.nickname} />
-        </Link>
-        <div className="min-w-0 flex-1">
-          <Link href={`/u/${post.author.id}`} className="font-medium hover:underline">
-            {post.author.nickname}
+    <PlayerProvider>
+      <article>
+        <header className="flex items-center gap-3">
+          {/* the same link as the name beside it: only for the eye, not for screen readers or the Tab key */}
+          <Link href={`/u/${post.author.id}`} aria-hidden="true" tabIndex={-1}>
+            <Avatar id={post.author.id} name={post.author.nickname} />
           </Link>
-          <p className="text-xs text-muted">
-            <time dateTime={post.created_at}>{dateFormat.format(new Date(post.created_at))}</time>
-            {post.updated_at !== post.created_at && new Date(post.updated_at).getTime() - new Date(post.created_at).getTime() > 60_000
-              ? " · 已编辑"
-              : ""}
-          </p>
-        </div>
-        {post.visibility === "private" ? (
-          <span className="chip" title="只有你自己能看到">
-            <LockIcon className="size-3" />
-            仅自己可见
-          </span>
-        ) : null}
-        {isAuthor ? <PostMenu postId={post.id} /> : null}
-      </header>
-
-      <PostHeading post={post} />
-
-      <div className="mt-5">
-        <PostBody
-          source={post.source}
-          status={post.source_status}
-          anchors={post.anchors}
-          startAt={post.anchors.find((anchor) => anchor.t !== undefined)?.t ?? firstChipTime(sanitizeDocOrEmpty(post.body))}
-          html={renderDocHtml(post.body, { seekable: canSeek(post.source, post.source_status) })}
-        />
-      </div>
-
-      {post.tags.length > 0 ? (
-        <div className="mt-5 flex flex-wrap gap-1.5">
-          {post.tags.map((tag) => (
-            <TagChip key={tag.id} tag={tag} />
-          ))}
-        </div>
-      ) : null}
-
-      <div className="mt-5 flex items-center gap-5 border-t border-line pt-4">
-        <LikeButton postId={post.id} count={post.like_count} liked={state.liked.includes(post.id)} signedIn={Boolean(user)} />
-        <FavoriteButton postId={post.id} favorited={state.favorited.includes(post.id)} signedIn={Boolean(user)} />
-        <span className="ml-auto flex items-center gap-4">
-          <CopyLinkButton />
-          {isAuthor ? null : (
-            <Link href={`/report?post=${post.id}`} className="text-sm text-muted transition-colors hover:text-danger">
-              举报
+          <div className="min-w-0 flex-1">
+            <Link href={`/u/${post.author.id}`} className="font-medium hover:underline">
+              {post.author.nickname}
             </Link>
-          )}
-        </span>
-      </div>
+            <p className="text-xs text-muted">
+              <time dateTime={post.created_at}>{dateFormat.format(new Date(post.created_at))}</time>
+              {post.updated_at !== post.created_at && new Date(post.updated_at).getTime() - new Date(post.created_at).getTime() > 60_000
+                ? " · 已编辑"
+                : ""}
+            </p>
+          </div>
+          {post.visibility === "private" ? (
+            <span className="chip" title="只有你自己能看到">
+              <LockIcon className="size-3" />
+              仅自己可见
+            </span>
+          ) : null}
+          {isAuthor ? <PostMenu postId={post.id} /> : null}
+        </header>
 
-      <Comments postId={post.id} postAuthorId={post.author.id} viewerId={user?.id ?? null} initial={comments} />
-    </article>
+        <PostHeading post={post} />
+
+        <div className="mt-5">
+          <PostBody
+            source={post.source}
+            status={post.source_status}
+            anchors={post.anchors}
+            startAt={post.anchors.find((anchor) => anchor.t !== undefined)?.t ?? firstChipTime(sanitizeDocOrEmpty(post.body))}
+            html={renderDocHtml(post.body, { seekable })}
+          />
+        </div>
+
+        {post.tags.length > 0 ? (
+          <div className="mt-5 flex flex-wrap gap-1.5">
+            {post.tags.map((tag) => (
+              <TagChip key={tag.id} tag={tag} />
+            ))}
+          </div>
+        ) : null}
+
+        <div className="mt-5 flex items-center gap-5 border-t border-line pt-4">
+          <LikeButton postId={post.id} count={post.like_count} liked={state.liked.includes(post.id)} signedIn={Boolean(user)} />
+          <FavoriteButton postId={post.id} favorited={state.favorited.includes(post.id)} signedIn={Boolean(user)} />
+          <span className="ml-auto flex items-center gap-4">
+            <CopyLinkButton />
+            {isAuthor ? null : (
+              <Link href={`/report?post=${post.id}`} className="text-sm text-muted transition-colors hover:text-danger">
+                举报
+              </Link>
+            )}
+          </span>
+        </div>
+
+        <Comments postId={post.id} postAuthorId={post.author.id} viewerId={user?.id ?? null} seekable={seekable} initial={comments} />
+      </article>
+    </PlayerProvider>
   );
 }
 

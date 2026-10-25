@@ -4,6 +4,7 @@ import { readAnchors } from "./anchor";
 import { excerptOf, FEED_PAGE_SIZE } from "./feed";
 import { createAnonClient } from "./supabase/anon";
 import { createClient } from "./supabase/server";
+import { commentHtml } from "./comment-html";
 import { TAG_KINDS, type AuthorRef, type CommentData, type PostCardData, type PostDetailData, type PostSource, type TagKind, type TagRef, type Visibility } from "./types";
 
 /**
@@ -191,18 +192,20 @@ export async function getPublicPost(id: string): Promise<PostDetailData | null> 
   return data ? toDetail(data as unknown as RawPost) : null;
 }
 
-export async function getComments(postId: string): Promise<CommentData[]> {
+export async function getComments(postId: string, seekable: boolean): Promise<CommentData[]> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("comments")
-    .select("id, post_id, parent_id, body, created_at, author:profiles(id, nickname)")
+    .select("id, post_id, parent_id, body, doc, created_at, author:profiles(id, nickname)")
     .eq("post_id", postId)
     .order("created_at", { ascending: true })
     .limit(500);
   if (error) throw new Error(`could not load comments: ${error.message}`);
-  return ((data ?? []) as unknown as (Omit<CommentData, "author"> & { author: AuthorRef | null })[]).map((row) => ({
+  type Row = Omit<CommentData, "author" | "html"> & { author: AuthorRef | null; body: string; doc: unknown };
+  return ((data ?? []) as unknown as Row[]).map(({ body, doc, author, ...row }) => ({
     ...row,
-    author: row.author ?? GONE_AUTHOR,
+    author: author ?? GONE_AUTHOR,
+    html: commentHtml({ body, doc }, seekable),
   }));
 }
 

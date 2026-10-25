@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { IMAGE_ONLY_TEXT, MAX_PLAIN_TEXT, MAX_POST_TAGS, normalizeComment, preparePost } from "@/lib/post-input";
+import { IMAGE_ONLY_TEXT, MAX_PLAIN_TEXT, MAX_POST_TAGS, prepareComment, preparePost } from "@/lib/post-input";
 
 const doc = (...content: unknown[]) => ({ type: "doc", content });
 const para = (...content: unknown[]) => ({ type: "paragraph", content });
@@ -140,15 +140,58 @@ describe("preparePost with images", () => {
   });
 });
 
-describe("normalizeComment", () => {
-  it("trims and squeezes blank lines", () => {
-    expect(normalizeComment("  你好  ")).toBe("你好");
-    expect(normalizeComment("一\r\n\r\n\r\n\r\n二")).toBe("一\n\n二");
+describe("prepareComment", () => {
+  const paragraph = (...content: object[]) => ({ type: "paragraph", content });
+  const text = (value: string, marks?: object[]) => ({ type: "text", text: value, ...(marks ? { marks } : {}) });
+  const comment = (...blocks: object[]) => ({ type: "doc", content: blocks });
+
+  it("keeps formatting, quotes, lists and code, and counts the words", () => {
+    const result = prepareComment(
+      comment(
+        paragraph(text("你好 "), text("粗体", [{ type: "bold" }])),
+        { type: "blockquote", content: [paragraph(text("引一句"))] },
+        { type: "bulletList", content: [{ type: "listItem", content: [paragraph(text("一项"))] }] },
+        { type: "codeBlock", content: [text("let x = 1")] },
+      ),
+    );
+    expect(result.ok && result.value.text).toBe("你好 粗体\n引一句\n一项\nlet x = 1");
+    expect(result.ok && result.value.doc.content?.map((node) => node.type)).toEqual(["paragraph", "blockquote", "bulletList", "codeBlock"]);
   });
 
-  it("rejects empty, blank and too long comments", () => {
-    for (const bad of ["", "   ", "\n\t", "　", 1, null, undefined]) expect(normalizeComment(bad), String(bad)).toBeNull();
-    expect(normalizeComment("字".repeat(1000))).not.toBeNull();
-    expect(normalizeComment("字".repeat(1001))).toBeNull();
+  it("leaves out what a comment does not have: pictures, headings, rules", () => {
+    const result = prepareComment(
+      comment(
+        { type: "heading", attrs: { level: 1 }, content: [text("标题")] },
+        { type: "horizontalRule" },
+        { type: "image", attrs: { key: "u/x.png" } },
+        paragraph(text("正文")),
+      ),
+    );
+    expect(result.ok && result.value.doc.content?.map((node) => node.type)).toEqual(["paragraph"]);
+  });
+
+  it("turns @12:34 into a time label, like in a post", () => {
+    const result = prepareComment(comment(paragraph(text("看 @0:43 这里"))));
+    expect(result.ok && result.value.doc.content?.[0].content?.map((node) => node.type)).toEqual(["text", "anchorChip", "text"]);
+  });
+
+  it("refuses links that could run script", () => {
+    const result = prepareComment(comment(paragraph(text("点我", [{ type: "link", attrs: { href: "javascript:alert(1)" } }]))));
+    expect(result.ok && result.value.doc.content?.[0].content?.[0].marks).toBeUndefined();
+  });
+
+  it("rejects what is empty, not a document, or too long", () => {
+    for (const bad of ["", "字", null, undefined, 1, {}, comment(), comment(paragraph()), comment(paragraph(text("   ")))]) {
+      expect(prepareComment(bad).ok, JSON.stringify(bad)).toBe(false);
+    }
+    expect(prepareComment(comment(paragraph(text("字".repeat(1000))))).ok).toBe(true);
+    expect(prepareComment(comment(paragraph(text("字".repeat(1001))))).ok).toBe(false);
+  });
+
+  it("does not take a deeply nested or huge document", () => {
+    let nested: object = paragraph(text("深"));
+    for (let i = 0; i < 10; i++) nested = { type: "blockquote", content: [nested] };
+    expect(prepareComment(comment(nested)).ok).toBe(false);
+    expect(prepareComment(comment(...Array.from({ length: 600 }, () => paragraph(text("行"))))).ok).toBe(false);
   });
 });

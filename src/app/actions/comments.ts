@@ -3,7 +3,8 @@
 import { z } from "zod";
 import { fail, zodMessage, type ActionResult } from "@/lib/action";
 import { getCurrentUser, isUuid } from "@/lib/dal";
-import { normalizeComment } from "@/lib/post-input";
+import { commentHtml } from "@/lib/comment-html";
+import { prepareComment } from "@/lib/post-input";
 import { enforce, LIMITS } from "@/lib/server/limits";
 import { failLogged } from "@/lib/server/log";
 import { createClient } from "@/lib/supabase/server";
@@ -15,18 +16,23 @@ const POSTGRES_CHECK_VIOLATION = "23514";
 const inputSchema = z.object({
   postId: z.uuid(),
   parentId: z.uuid().nullable().default(null),
-  body: z.unknown(),
+  /** the editor's document: untrusted, cleaned by prepareComment */
+  doc: z.unknown(),
+  /** only picks the look of the time labels in the answer (a button or plain text): the document itself is cleaned the same either way */
+  seekable: z.boolean().default(false),
 });
 
 export async function addComment(input: {
   postId: string;
   parentId?: string | null;
-  body: string;
+  doc: unknown;
+  seekable?: boolean;
 }): Promise<ActionResult<{ comment: CommentData }>> {
   const parsed = inputSchema.safeParse(input);
   if (!parsed.success) return fail(zodMessage(parsed.error));
-  const body = normalizeComment(parsed.data.body);
-  if (!body) return fail("评论要 1–1000 个字。");
+  const prepared = prepareComment(parsed.data.doc);
+  if (!prepared.ok) return fail(prepared.error);
+  const { doc, text } = prepared.value;
   const user = await getCurrentUser();
   if (!user) return fail("请先登录。");
   const limited = await enforce(LIMITS.comment, user.id);
@@ -35,16 +41,19 @@ export async function addComment(input: {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("comments")
-    .insert({ post_id: parsed.data.postId, parent_id: parsed.data.parentId, body })
-    .select("id, post_id, parent_id, body, created_at, author:profiles(id, nickname)")
+    .insert({ post_id: parsed.data.postId, parent_id: parsed.data.parentId, body: text, doc })
+    .select("id, post_id, parent_id, created_at, author:profiles(id, nickname)")
     .single();
   if (error) {
     if (error.code === POSTGRES_FK_VIOLATION) return fail("找不到这条内容。");
     if (error.code === POSTGRES_CHECK_VIOLATION) return fail("只能回复一级评论。");
     return failLogged("comments.add", error, "评论失败。", { post: parsed.data.postId });
   }
-  const row = data as unknown as Omit<CommentData, "author"> & { author: AuthorRef | null };
-  return { ok: true, comment: { ...row, author: row.author ?? { id: user.id, nickname: "我" } } };
+  const row = data as unknown as Omit<CommentData, "author" | "html"> & { author: AuthorRef | null };
+  return {
+    ok: true,
+    comment: { ...row, author: row.author ?? { id: user.id, nickname: "我" }, html: commentHtml({ body: text, doc }, parsed.data.seekable) },
+  };
 }
 
 /** Deletes a comment (and the replies under it). Allowed for its author and for the post's author. */

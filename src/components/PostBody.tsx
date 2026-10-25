@@ -1,13 +1,11 @@
 "use client";
 
-import { useRef } from "react";
 import { anchorLabel, type Anchor } from "@/lib/anchor";
-import type { ChipAttrs } from "@/lib/doc/schema";
 import { canSeek } from "@/lib/sources";
 import { formatTimestamp } from "@/lib/time";
 import type { PostSource } from "@/lib/types";
 import { SourcePlayer } from "./players/SourcePlayer";
-import type { PlayerHandle } from "./players/types";
+import { PLAYER_ELEMENT_ID, usePlayer } from "./players/player-context";
 import { RichHtml } from "./RichHtml";
 
 /** The post itself: its video or link, the positions it points at with their descriptions, and the text. Time labels jump the player. */
@@ -27,17 +25,15 @@ export function PostBody({
   /** rendered on the server from the whitelist */
   html: string;
 }) {
-  const playerRef = useRef<PlayerHandle>(null);
+  const { ref: playerRef, seek } = usePlayer();
   const seekable = canSeek(source, status);
-
-  function seek(attrs: ChipAttrs) {
-    if (attrs.t !== undefined) playerRef.current?.seekTo(attrs.t);
-  }
 
   return (
     <div className="space-y-4">
       {source ? (
-        <SourcePlayer source={{ ...source, status }} startAt={startAt} handleRef={playerRef} />
+        <div id={PLAYER_ELEMENT_ID}>
+          <SourcePlayer source={{ ...source, status }} startAt={startAt} handleRef={playerRef} />
+        </div>
       ) : null}
 
       {anchors.length > 0 ? (

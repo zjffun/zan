@@ -1,13 +1,25 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { addComment, deleteComment } from "@/app/actions/comments";
-import { MAX_COMMENT_LENGTH } from "@/lib/post-input";
 import { attempt } from "@/lib/attempt";
+import { EMPTY_DOC, type DocNode } from "@/lib/doc/schema";
+import { docToPlainText } from "@/lib/doc/text";
+import { MAX_COMMENT_LENGTH } from "@/lib/post-input";
 import type { CommentData } from "@/lib/types";
 import { Avatar } from "./Avatar";
+import type { NoteEditorHandle } from "./editor/NoteEditor";
+import { usePlayer } from "./players/player-context";
+import { RichHtml } from "./RichHtml";
+
+// The editor is most of what a post's author needs and nothing a reader does: it is fetched when somebody starts writing.
+const NoteEditor = dynamic(() => import("./editor/NoteEditor").then((module) => module.NoteEditor), {
+  ssr: false,
+  loading: () => <div className="h-[8.5rem] rounded-lg border border-line bg-surface" aria-hidden="true" />,
+});
 
 const timeFormat = new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Shanghai" });
 
@@ -19,13 +31,17 @@ export function Comments({
   postId,
   postAuthorId,
   viewerId,
+  seekable,
   initial,
 }: {
   postId: string;
   postAuthorId: string;
   viewerId: string | null;
+  /** the post has a player that a time label can jump */
+  seekable: boolean;
   initial: CommentData[];
 }) {
+  const { seek } = usePlayer();
   const [comments, setComments] = useState(initial);
   const [replyTo, setReplyTo] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -59,7 +75,7 @@ export function Comments({
               {timeFormat.format(new Date(comment.created_at))}
             </time>
           </p>
-          <p className="mt-0.5 whitespace-pre-line break-words text-sm">{comment.body}</p>
+          <RichHtml html={comment.html} onChip={seek} className="comment-body mt-0.5" />
           <p className="mt-1 flex gap-3 text-xs text-muted">
             {comment.parent_id === null ? (
               <button type="button" className="hover:text-ink" onClick={() => setReplyTo(replyTo === comment.id ? null : comment.id)}>
@@ -83,6 +99,7 @@ export function Comments({
                     postId={postId}
                     parentId={comment.id}
                     viewerId={viewerId}
+                    seekable={seekable}
                     autoFocus
                     placeholder={`回复 ${comment.author.nickname}`}
                     onAdded={(added) => {
@@ -110,6 +127,7 @@ export function Comments({
           postId={postId}
           parentId={null}
           viewerId={viewerId}
+          seekable={seekable}
           placeholder="说点什么…"
           onAdded={(added) => {
             setComments((prev) => [...prev, added]);
@@ -134,6 +152,7 @@ function CommentForm({
   postId,
   parentId,
   viewerId,
+  seekable,
   placeholder,
   autoFocus = false,
   onAdded,
@@ -142,13 +161,18 @@ function CommentForm({
   postId: string;
   parentId: string | null;
   viewerId: string | null;
+  seekable: boolean;
   placeholder: string;
   autoFocus?: boolean;
   onAdded: (comment: CommentData) => void;
   onCancel?: () => void;
 }) {
   const router = useRouter();
-  const [text, setText] = useState("");
+  const editor = useRef<NoteEditorHandle>(null);
+  // the editor is only loaded once somebody wants to write: until then this is a box that looks like it
+  const [open, setOpen] = useState(autoFocus);
+  const [doc, setDoc] = useState<DocNode>(EMPTY_DOC);
+  const [empty, setEmpty] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -163,43 +187,52 @@ function CommentForm({
     );
   }
 
+  const length = empty ? 0 : Array.from(docToPlainText(doc)).length;
+
   async function submit() {
-    if (busy || !text.trim()) return;
+    if (busy || empty) return;
     setBusy(true);
     setError(null);
-    const result = await attempt(() => addComment({ postId, parentId, body: text }));
+    const result = await attempt(() => addComment({ postId, parentId, doc, seekable }));
     setBusy(false);
     if (!result.ok) return setError(result.error);
-    setText("");
+    editor.current?.clear();
     onAdded(result.comment);
     router.refresh();
   }
 
   return (
     <div>
-      <textarea
-        className="input min-h-16"
-        value={text}
-        onChange={(event) => setText(event.target.value)}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
-            event.preventDefault();
-            void submit();
-          }
-        }}
-        placeholder={placeholder}
-        aria-label={placeholder}
-        rows={2}
-        autoFocus={autoFocus}
-      />
+      {open ? (
+        <NoteEditor
+          ref={editor}
+          variant="comment"
+          autofocus
+          label={placeholder}
+          placeholder={placeholder}
+          onChange={(next, isEmpty) => {
+            setDoc(next);
+            setEmpty(isEmpty);
+          }}
+          onSubmit={() => void submit()}
+        />
+      ) : (
+        <button
+          type="button"
+          className="input flex min-h-[8.5rem] w-full items-start justify-start text-left text-muted"
+          onClick={() => setOpen(true)}
+        >
+          {placeholder}
+        </button>
+      )}
       <div className="mt-1.5 flex items-center gap-2">
         {error ? (
           <span role="alert" className="text-xs text-danger">
             {error}
           </span>
         ) : (
-          <span className={`text-xs tabular-nums ${Array.from(text).length > MAX_COMMENT_LENGTH ? "text-danger" : "text-muted"}`}>
-            {Array.from(text).length}/{MAX_COMMENT_LENGTH}
+          <span className={`text-xs tabular-nums ${length > MAX_COMMENT_LENGTH ? "text-danger" : "text-muted"}`}>
+            {length}/{MAX_COMMENT_LENGTH}
           </span>
         )}
         <span className="ml-auto flex gap-2">
@@ -208,7 +241,7 @@ function CommentForm({
               取消
             </button>
           ) : null}
-          <button type="button" className="btn btn-primary btn-sm" onClick={submit} disabled={busy || !text.trim()} title="Cmd/Ctrl + Enter">
+          <button type="button" className="btn btn-primary btn-sm" onClick={submit} disabled={busy || empty} title="Cmd/Ctrl + Enter">
             {busy ? "发送中…" : "发送"}
           </button>
         </span>

@@ -25,7 +25,14 @@ export interface NoteEditorHandle {
 
 export interface NoteEditorProps {
   initial?: DocNode;
+  /**
+   * What it is for. A comment has no headings, rules or pictures (the server's comment whitelist has none either),
+   * and is a smaller box.
+   */
+  variant?: "note" | "comment";
   placeholder?: string;
+  /** Accessible name of the text box. */
+  label?: string;
   autofocus?: boolean;
   ref?: Ref<NoteEditorHandle>;
   onChange?: (doc: DocNode, isEmpty: boolean) => void;
@@ -55,6 +62,7 @@ export function NoteEditor({ ref, ...props }: NoteEditorProps) {
 
   const initial = useMemo(() => sanitizeDocOrEmpty(props.initial ?? EMPTY_DOC), [props.initial]);
   const [notice, setNotice] = useState<string | null>(null);
+  const comment = props.variant === "comment";
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -62,22 +70,31 @@ export function NoteEditor({ ref, ...props }: NoteEditorProps) {
     content: initial,
     extensions: [
       StarterKit.configure({
-        heading: { levels: [1, 2] },
+        ...(comment ? { heading: false, horizontalRule: false } : { heading: { levels: [1, 2] } }),
         underline: false,
         link: { openOnClick: false, autolink: true, protocols: ["http", "https", "mailto"] },
       }),
       Placeholder.configure({ placeholder: props.placeholder ?? "写点什么… 输入 @12:34 加空格，会变成可点击的时间标签" }),
       AnchorChip.configure({ onTimeShortcut: () => latest.current.onTimeShortcut?.() }),
-      PostImage,
       QuoteExit,
       BreaksAreParagraphs,
-      ImageUpload.configure({
-        onBusyChange: (running) => latest.current.onUploadingChange?.(running),
-        onError: (message) => setNotice(message),
-      }),
+      ...(comment
+        ? []
+        : [
+            PostImage,
+            ImageUpload.configure({
+              onBusyChange: (running) => latest.current.onUploadingChange?.(running),
+              onError: (message) => setNotice(message),
+            }),
+          ]),
     ],
     editorProps: {
-      attributes: { class: "note-body ProseMirror px-3 py-2", "aria-label": "内容", role: "textbox", "aria-multiline": "true" },
+      attributes: {
+        class: `note-body ProseMirror px-3 py-2${comment ? " comment-editor" : ""}`,
+        "aria-label": props.label ?? "内容",
+        role: "textbox",
+        "aria-multiline": "true",
+      },
       handleDOMEvents: {
         click: (_view, event) => {
           const chip = chipFromElement(event.target);
@@ -138,7 +155,7 @@ export function NoteEditor({ ref, ...props }: NoteEditorProps) {
 
   return (
     <div className="rounded-lg border border-line bg-surface focus-within:border-accent">
-      {editor ? <Toolbar editor={editor} /> : <div className="h-9 border-b border-line" />}
+      {editor ? <Toolbar editor={editor} comment={comment} /> : <div className="h-9 border-b border-line" />}
       <EditorContent editor={editor} />
       {notice ? (
         <p role="alert" className="flex items-start gap-2 border-t border-line px-3 py-1.5 text-xs text-danger">
@@ -154,7 +171,7 @@ export function NoteEditor({ ref, ...props }: NoteEditorProps) {
 
 type EditorInstance = NonNullable<ReturnType<typeof useEditor>>;
 
-function Toolbar({ editor }: { editor: EditorInstance }) {
+function Toolbar({ editor, comment }: { editor: EditorInstance; comment: boolean }) {
   const state = useEditorState({
     editor,
     selector: ({ editor: e }) => ({
@@ -205,23 +222,27 @@ function Toolbar({ editor }: { editor: EditorInstance }) {
         else setLinking((v) => !v);
       }, "text-xs")}
       <span className="mx-1 h-4 w-px bg-line" />
-      {button("H", "小标题", state.heading, () => editor.chain().focus().toggleHeading({ level: 2 }).run(), "font-bold")}
+      {comment ? null : button("H", "小标题", state.heading, () => editor.chain().focus().toggleHeading({ level: 2 }).run(), "font-bold")}
       {button("•", "无序列表", state.bullet, () => editor.chain().focus().toggleBulletList().run())}
       {button("1.", "有序列表", state.ordered, () => editor.chain().focus().toggleOrderedList().run(), "text-xs")}
       {button("❝", "引用（回车结束引用，Shift+回车在引用里另起一行）", state.quote, () => editor.chain().focus().toggleBlockquote().run())}
-      <span className="mx-1 h-4 w-px bg-line" />
-      {button("图片", `插入图片（也可以直接粘贴或拖入，最多 ${MAX_POST_IMAGES} 张）`, false, () => fileInput.current?.click(), "text-xs")}
-      <input
-        ref={fileInput}
-        type="file"
-        accept={IMAGE_TYPES.join(",")}
-        multiple
-        hidden
-        onChange={(event) => {
-          editor.chain().focus().uploadImages(Array.from(event.target.files ?? [])).run();
-          event.target.value = ""; // lets the same file be picked again
-        }}
-      />
+      {comment ? null : (
+        <>
+          <span className="mx-1 h-4 w-px bg-line" />
+          {button("图片", `插入图片（也可以直接粘贴或拖入，最多 ${MAX_POST_IMAGES} 张）`, false, () => fileInput.current?.click(), "text-xs")}
+          <input
+            ref={fileInput}
+            type="file"
+            accept={IMAGE_TYPES.join(",")}
+            multiple
+            hidden
+            onChange={(event) => {
+              editor.chain().focus().uploadImages(Array.from(event.target.files ?? [])).run();
+              event.target.value = ""; // lets the same file be picked again
+            }}
+          />
+        </>
+      )}
       {linking ? (
         <form
           className="ml-1 flex items-center gap-1"

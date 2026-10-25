@@ -99,7 +99,8 @@ export interface CommentData {
   post_id: string;
   parent_id: string | null;
   author: AuthorRef;
-  body: string;
+  /** the comment as HTML, rendered on the server from the whitelist (see lib/comment-html.ts) */
+  html: string;
   created_at: string;
 }
 

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { anchorSchema, MAX_NOTE_LENGTH, MAX_POSITIONS, type Anchor } from "./anchor";
 import { collectImages } from "./doc/images";
-import { DocError, sanitizeDoc, type DocNode } from "./doc/schema";
+import { DocError, sanitizeComment, sanitizeDoc, type DocNode } from "./doc/schema";
 import { docToPlainText } from "./doc/text";
 import { MAX_POST_IMAGES, parseImageKey } from "./image";
 import { parseSourceInput } from "./sources";
@@ -107,11 +107,26 @@ export function preparePost(raw: unknown, author: string): PrepareResult {
 }
 
 export const MAX_COMMENT_LENGTH = 1000;
+const MAX_COMMENT_DOC_BYTES = 30_000;
 
-/** Comments are plain text: trimmed, with runs of blank lines squeezed. */
-export function normalizeComment(raw: unknown): string | null {
-  if (typeof raw !== "string") return null;
-  const text = raw.replace(/\r\n?/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
-  if (text === "" || Array.from(text).length > MAX_COMMENT_LENGTH) return null;
-  return text;
+export interface PreparedComment {
+  doc: DocNode;
+  /** what the document says in plain text: this is what the 1000 characters are counted on */
+  text: string;
+}
+
+/** Checks and cleans a comment: a small document (paragraphs, quotes, lists, code, links, time labels), 1–1000 characters of text. */
+export function prepareComment(raw: unknown): { ok: true; value: PreparedComment } | { ok: false; error: string } {
+  let doc: DocNode;
+  try {
+    doc = sanitizeComment(raw);
+  } catch {
+    return { ok: false, error: "评论无效。" };
+  }
+  const text = docToPlainText(doc);
+  if (!text) return { ok: false, error: "评论要 1–1000 个字。" };
+  if (Array.from(text).length > MAX_COMMENT_LENGTH) return { ok: false, error: `评论太长了（最多 ${MAX_COMMENT_LENGTH} 个字）。` };
+  // links and marks add bytes that the text does not show; the column refuses 50000 bytes of JSON
+  if (new TextEncoder().encode(JSON.stringify(doc)).length > MAX_COMMENT_DOC_BYTES) return { ok: false, error: "评论太复杂了，请删减一些格式或链接。" };
+  return { ok: true, value: { doc, text } };
 }

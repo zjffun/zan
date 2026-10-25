@@ -316,6 +316,14 @@ select.input {
   min-height: 5.5rem;
   outline: none;
 }
+/* a comment is a smaller thing than a post */
+.comment-body,
+.ProseMirror.comment-editor {
+  font-size: 0.875rem;
+}
+.ProseMirror.comment-editor {
+  min-height: 4rem;
+}
 .ProseMirror p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);
   float: left;
