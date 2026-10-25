@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { setFavorite } from "@/app/actions/social";
+import { attempt } from "@/lib/attempt";
 import { BookmarkIcon } from "./icons";
 
 /** Bookmark a post into "我的收藏". Visitors are sent to the login page first. */
@@ -19,7 +20,7 @@ export function FavoriteButton({ postId, favorited, signedIn }: { postId: string
     const next = !value;
     setValue(next);
     startTransition(async () => {
-      const result = await setFavorite(postId, next);
+      const result = await attempt(() => setFavorite(postId, next));
       if (!result.ok) setValue(!next);
     });
   }

@@ -1,8 +1,9 @@
 import type { NextRequest } from "next/server";
+import { limitSearch } from "@/lib/server/search-limit";
 import { updateSession } from "@/lib/supabase/proxy";
 
 export async function proxy(request: NextRequest) {
-  return updateSession(request);
+  return (await limitSearch(request)) ?? updateSession(request);
 }
 
 export const config = {

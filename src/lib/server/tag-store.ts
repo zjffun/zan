@@ -1,6 +1,7 @@
 import "server-only";
 import type { createClient } from "@/lib/supabase/server";
 import type { TagKind, TagRef } from "@/lib/types";
+import { logError } from "./log";
 
 type Supabase = Awaited<ReturnType<typeof createClient>>;
 
@@ -57,6 +58,7 @@ export async function createOrFindTag(
       const again = (catalogKey ? await supabase.from("tags").select(TAG_COLUMNS).eq(`external->>${catalogKey[0]}`, catalogKey[1]).maybeSingle() : null)?.data ?? (await findTagByName(supabase, tag.name));
       if (again) return { tag: again as TagRef, created: false };
     }
+    logError("tags.create", inserted.error, { name: tag.name });
     return { error: "创建标签失败。" };
   }
   return { tag: inserted.data as TagRef, created: true };

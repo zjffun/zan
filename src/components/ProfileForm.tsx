@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { updateProfile } from "@/app/actions/profile";
+import { attempt } from "@/lib/attempt";
 import { useResetOnHide } from "@/lib/use-reset-on-hide";
 
 export function ProfileForm({ nickname, bio }: { nickname: string; bio: string }) {
@@ -16,7 +17,7 @@ export function ProfileForm({ nickname, bio }: { nickname: string; bio: string }
   async function submit() {
     setBusy(true);
     setState({});
-    const result = await updateProfile(values);
+    const result = await attempt(() => updateProfile(values));
     setBusy(false);
     if (!result.ok) return setState({ error: result.error });
     setState({ saved: true });

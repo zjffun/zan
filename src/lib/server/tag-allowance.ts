@@ -1,8 +1,5 @@
 import "server-only";
-import { rateLimit } from "./ratelimit";
-
-/** How many tags one person may create: the same for the tag form and for tags typed into a post. */
-export const TAG_ALLOWANCE = { limit: 20, windowMs: 10 * 60_000 } as const;
+import { enforce, LIMITS } from "./limits";
 
 /**
  * Spends `count` tag creations from a person's allowance. Tags are shared and permanent, so writing a
@@ -11,7 +8,7 @@ export const TAG_ALLOWANCE = { limit: 20, windowMs: 10 * 60_000 } as const;
  */
 export async function chargeNewTags(userId: string, count: number): Promise<{ ok: true } | { ok: false; retryAfter: number }> {
   for (let spent = 0; spent < count; spent++) {
-    const result = await rateLimit(`tag:${userId}`, TAG_ALLOWANCE.limit, TAG_ALLOWANCE.windowMs);
+    const result = await enforce(LIMITS.tagCreate, userId);
     if (!result.ok) return { ok: false, retryAfter: result.retryAfter };
   }
   return { ok: true };

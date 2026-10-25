@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { previewLink } from "@/app/actions/link";
+import { attempt } from "@/lib/attempt";
 import type { ResolvedLink } from "@/lib/links/resolve";
 import { PROVIDER_LABEL } from "@/lib/sources";
 import { formatTimestamp } from "@/lib/time";
@@ -36,7 +37,7 @@ export function LinkAttach({
     if (!url.trim() || busy) return;
     setBusy(true);
     setError(null);
-    const result = await previewLink(url.trim());
+    const result = await attempt(() => previewLink(url.trim()));
     setBusy(false);
     if (!result.ok) return setError(result.error);
     const { preview } = result;

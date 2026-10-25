@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { createTag, createTagFromWork, searchWorks } from "@/app/actions/tags";
+import { attempt } from "@/lib/attempt";
 import { MAX_TAG_NAME_LENGTH } from "@/lib/tag-name";
 import { TAG_KINDS, TAG_KIND_LABEL, type TagKind } from "@/lib/types";
 import { useResetOnHide } from "@/lib/use-reset-on-hide";
@@ -42,7 +43,7 @@ export function NewTagForm() {
     const ticket = ++latest.current;
     if (!text) return;
     const timer = setTimeout(async () => {
-      const response = await searchWorks(text);
+      const response = await attempt(() => searchWorks(text));
       if (ticket !== latest.current) return;
       setSearching(false);
       if (response.ok) {
@@ -59,7 +60,7 @@ export function NewTagForm() {
     setError(null);
     setBusyId(key);
     startCreating(async () => {
-      const response = await run();
+      const response = await attempt(run);
       if (response.ok) {
         resetWhenLeft();
         router.push(`/t/${response.tag.slug}`);

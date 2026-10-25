@@ -2,7 +2,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getCurrentUser } from "@/lib/dal";
 import { IMAGE_BUCKET, MAX_UPLOAD_BYTES, MAX_UPLOAD_EDGE, newImageKey } from "@/lib/image";
 import { sniffImage } from "@/lib/image-sniff";
-import { rateLimit } from "@/lib/server/ratelimit";
+import { enforce, LIMITS } from "@/lib/server/limits";
+import { logError } from "@/lib/server/log";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 const reply = (status: number, error: string, headers?: HeadersInit) => NextResponse.json({ error }, { status, headers });
@@ -37,8 +38,8 @@ export async function POST(request: NextRequest) {
   if (!Number.isFinite(length) || length <= 0) return reply(411, "无法确定图片大小。");
   if (length > MAX_UPLOAD_BYTES + 64 * 1024) return reply(413, "图片太大了（最大 3 MB）。");
 
-  const burst = await rateLimit(`upload:min:${user.id}`, 12, 60_000);
-  const daily = await rateLimit(`upload:day:${user.id}`, 60, 24 * 60 * 60_000);
+  const burst = await enforce(LIMITS.uploadBurst, user.id);
+  const daily = await enforce(LIMITS.uploadDaily, user.id);
   const limited = !burst.ok ? burst : !daily.ok ? daily : null;
   if (limited) return reply(429, `上传太频繁，请 ${limited.retryAfter} 秒后再试。`, { "retry-after": String(limited.retryAfter) });
 
@@ -61,7 +62,7 @@ export async function POST(request: NextRequest) {
     // names never repeat, so a year-long cache is safe
     .upload(key, bytes, { contentType: image.type, cacheControl: "31536000", upsert: false });
   if (stored.error) {
-    console.error("image upload failed:", stored.error.message);
+    logError("upload.store", stored.error);
     return reply(502, "上传失败，请稍后再试。");
   }
 

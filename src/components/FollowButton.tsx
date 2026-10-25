@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { setFollow } from "@/app/actions/tags";
+import { attempt } from "@/lib/attempt";
 
 /** Follow / unfollow a tag. Visitors are sent to the login page first. */
 export function FollowButton({ tagId, following, signedIn }: { tagId: string; following: boolean; signedIn: boolean }) {
@@ -20,7 +21,7 @@ export function FollowButton({ tagId, following, signedIn }: { tagId: string; fo
     setValue(next);
     setError(null);
     startTransition(async () => {
-      const result = await setFollow(tagId, next);
+      const result = await attempt(() => setFollow(tagId, next));
       if (!result.ok) {
         setValue(!next);
         setError(result.error);

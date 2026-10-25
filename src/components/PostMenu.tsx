@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { deletePost } from "@/app/actions/posts";
+import { attempt } from "@/lib/attempt";
 
 /** The author's own controls for a post: edit and delete. */
 export function PostMenu({ postId }: { postId: string }) {
@@ -15,7 +16,7 @@ export function PostMenu({ postId }: { postId: string }) {
     if (!confirm("删除这条内容？评论和点赞也会一起删除，此操作无法撤销。")) return;
     setBusy(true);
     setError(null);
-    const result = await deletePost(postId);
+    const result = await attempt(() => deletePost(postId));
     if (!result.ok) {
       setBusy(false);
       setError(result.error);

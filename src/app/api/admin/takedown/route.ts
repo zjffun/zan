@@ -2,6 +2,7 @@ import { timingSafeEqual } from "node:crypto";
 import { revalidateTag } from "next/cache";
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
+import { logError } from "@/lib/server/log";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 function authorized(request: NextRequest): boolean {
@@ -34,7 +35,10 @@ export async function POST(request: NextRequest) {
     .update({ removed_at: body.data.restore ? null : new Date().toISOString() })
     .eq("id", body.data.post)
     .select("id");
-  if (updated.error) return NextResponse.json({ error: updated.error.message }, { status: 500 });
+  if (updated.error) {
+    logError("admin.takedown", updated.error, { post: body.data.post });
+    return NextResponse.json({ error: updated.error.message }, { status: 500 });
+  }
 
   // expire = 0: never serve the taken-down post from the cache again
   revalidateTag(`post:${body.data.post}`, { expire: 0 });

@@ -5,8 +5,8 @@ import { z } from "zod";
 import { requestSiteUrl, safeNextPath } from "@/lib/site";
 import { supabaseConfig } from "@/lib/supabase/config";
 import { createClient } from "@/lib/supabase/server";
-import { rateLimit } from "@/lib/server/ratelimit";
-import { headers } from "next/headers";
+import { enforce, LIMITS } from "@/lib/server/limits";
+import { clientKey } from "@/lib/server/request";
 
 export interface AuthState {
   error?: string;
@@ -18,11 +18,6 @@ const credentials = z.object({
   password: z.string().min(8, "密码至少 8 位").max(200),
 });
 
-async function clientKey(): Promise<string> {
-  const h = await headers();
-  return (h.get("x-forwarded-for") ?? "local").split(",")[0].trim();
-}
-
 /** One action for the three buttons of the login form: `intent` says which was pressed. */
 export async function authenticate(_prev: AuthState, formData: FormData): Promise<AuthState> {
   if (!supabaseConfig()) return { error: "服务器还没有配置 Supabase：请先设置 SUPABASE_URL 和 SUPABASE_ANON_KEY（见 .env.example）。" };
@@ -30,7 +25,7 @@ export async function authenticate(_prev: AuthState, formData: FormData): Promis
   const next = safeNextPath(formData.get("next"));
   const email = String(formData.get("email") ?? "").trim();
 
-  const limited = await rateLimit(`auth:${await clientKey()}`, 20, 10 * 60_000);
+  const limited = await enforce(LIMITS.signIn, await clientKey());
   if (!limited.ok) return { error: `尝试次数太多，请 ${limited.retryAfter} 秒后再试。` };
 
   const supabase = await createClient();

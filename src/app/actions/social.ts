@@ -2,7 +2,8 @@
 
 import { fail, type ActionResult } from "@/lib/action";
 import { getCurrentUser, isUuid } from "@/lib/dal";
-import { rateLimit } from "@/lib/server/ratelimit";
+import { enforce, LIMITS } from "@/lib/server/limits";
+import { failLogged } from "@/lib/server/log";
 import { createClient } from "@/lib/supabase/server";
 
 const POSTGRES_UNIQUE_VIOLATION = "23505";
@@ -14,7 +15,7 @@ async function setMark(table: Table, postId: string, on: boolean): Promise<Actio
   if (!isUuid(postId) || typeof on !== "boolean") return fail("参数无效。");
   const user = await getCurrentUser();
   if (!user) return fail("请先登录。");
-  const limited = await rateLimit(`mark:${user.id}`, 120, 60_000);
+  const limited = await enforce(LIMITS.mark, user.id);
   if (!limited.ok) return fail(`操作太频繁，请 ${limited.retryAfter} 秒后再试。`);
 
   const supabase = await createClient();
@@ -22,11 +23,12 @@ async function setMark(table: Table, postId: string, on: boolean): Promise<Actio
     const { error } = await supabase.from(table).insert({ post_id: postId });
     // already there: the end state is what the user asked for
     if (error && error.code !== POSTGRES_UNIQUE_VIOLATION) {
-      return fail(error.code === POSTGRES_FK_VIOLATION ? "找不到这条内容。" : "操作失败。");
+      if (error.code === POSTGRES_FK_VIOLATION) return fail("找不到这条内容。");
+      return failLogged(`social.${table}.add`, error, "操作失败。", { post: postId });
     }
   } else {
     const { error } = await supabase.from(table).delete().eq("post_id", postId).eq("user_id", user.id);
-    if (error) return fail("操作失败。");
+    if (error) return failLogged(`social.${table}.remove`, error, "操作失败。", { post: postId });
   }
 
   // the trigger has updated the counter: report the real number back

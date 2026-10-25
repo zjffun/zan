@@ -2,6 +2,7 @@ import { timingSafeEqual } from "node:crypto";
 import { revalidateTag } from "next/cache";
 import { NextResponse, type NextRequest } from "next/server";
 import { checkVideoHealth, healthUpdate } from "@/lib/links/check";
+import { logError } from "@/lib/server/log";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 /** Sources checked per run. Keep it small enough to finish inside the function time limit. */
@@ -33,7 +34,10 @@ export async function GET(request: NextRequest) {
     .in("source->>provider", ["youtube", "bilibili"])
     .order("source_checked_at", { ascending: true, nullsFirst: true })
     .limit(BATCH);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    logError("cron.check-sources.read", error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
 
   const summary = { checked: 0, ok: 0, dead: 0, unknown: 0, changed: 0 };
   const queue = [...(data ?? [])];
@@ -46,7 +50,8 @@ export async function GET(request: NextRequest) {
       summary[health] += 1;
       // no trustworthy answer ("unknown"): the status stays, but the post goes to the back of the queue
       const update = healthUpdate({ status: row.source_status, fail_count: row.source_fail_count }, health, new Date());
-      await admin.from("posts").update(update).eq("id", row.id);
+      const written = await admin.from("posts").update(update).eq("id", row.id);
+      if (written.error) logError("cron.check-sources.write", written.error, { post: row.id });
       if (update.source_status !== undefined && update.source_status !== row.source_status) {
         summary.changed += 1;
         // the post page and the cards show a "video unavailable" notice now (or no longer)

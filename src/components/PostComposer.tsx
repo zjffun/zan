@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { createPost, updatePost } from "@/app/actions/posts";
+import { attempt } from "@/lib/attempt";
 import { firstChipTime } from "@/lib/doc/chips";
 import { withLegacyPositions } from "@/lib/doc/legacy-positions";
 import { EMPTY_DOC, type ChipAttrs, type DocNode } from "@/lib/doc/schema";
@@ -127,7 +128,7 @@ export function PostComposer({ post, presetTags = [] }: { post?: PostDetailData;
     };
 
     setSaving(true);
-    const result = post ? await updatePost(post.id, input) : await createPost(input);
+    const result = await attempt(() => (post ? updatePost(post.id, input) : createPost(input)));
     if (!result.ok) {
       setSaving(false);
       setError(result.error);

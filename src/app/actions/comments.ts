@@ -4,7 +4,8 @@ import { z } from "zod";
 import { fail, zodMessage, type ActionResult } from "@/lib/action";
 import { getCurrentUser, isUuid } from "@/lib/dal";
 import { normalizeComment } from "@/lib/post-input";
-import { rateLimit } from "@/lib/server/ratelimit";
+import { enforce, LIMITS } from "@/lib/server/limits";
+import { failLogged } from "@/lib/server/log";
 import { createClient } from "@/lib/supabase/server";
 import type { AuthorRef, CommentData } from "@/lib/types";
 
@@ -28,7 +29,7 @@ export async function addComment(input: {
   if (!body) return fail("评论要 1–1000 个字。");
   const user = await getCurrentUser();
   if (!user) return fail("请先登录。");
-  const limited = await rateLimit(`comment:${user.id}`, 20, 10 * 60_000);
+  const limited = await enforce(LIMITS.comment, user.id);
   if (!limited.ok) return fail(`评论太频繁，请 ${limited.retryAfter} 秒后再试。`);
 
   const supabase = await createClient();
@@ -40,7 +41,7 @@ export async function addComment(input: {
   if (error) {
     if (error.code === POSTGRES_FK_VIOLATION) return fail("找不到这条内容。");
     if (error.code === POSTGRES_CHECK_VIOLATION) return fail("只能回复一级评论。");
-    return fail("评论失败。");
+    return failLogged("comments.add", error, "评论失败。", { post: parsed.data.postId });
   }
   const row = data as unknown as Omit<CommentData, "author"> & { author: AuthorRef | null };
   return { ok: true, comment: { ...row, author: row.author ?? { id: user.id, nickname: "我" } } };
@@ -51,9 +52,11 @@ export async function deleteComment(commentId: string): Promise<ActionResult> {
   if (!isUuid(commentId)) return fail("参数无效。");
   const user = await getCurrentUser();
   if (!user) return fail("请先登录。");
+  const limited = await enforce(LIMITS.commentDelete, user.id);
+  if (!limited.ok) return fail(`操作太频繁，请 ${limited.retryAfter} 秒后再试。`);
   const supabase = await createClient();
   const { data, error } = await supabase.from("comments").delete().eq("id", commentId).select("id");
-  if (error) return fail("删除失败。");
+  if (error) return failLogged("comments.delete", error, "删除失败。", { comment: commentId });
   if (!data || data.length === 0) return fail("没有权限删除这条评论。");
   return { ok: true };
 }

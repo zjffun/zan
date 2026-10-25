@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { chargeNewTags, TAG_ALLOWANCE } from "@/lib/server/tag-allowance";
+import { LIMITS } from "@/lib/server/limits";
+import { chargeNewTags } from "@/lib/server/tag-allowance";
+
+const TAG_ALLOWANCE = LIMITS.tagCreate;
 
 let n = 0;
 const person = () => `tag-allowance-test-${++n}`;

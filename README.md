@@ -60,7 +60,7 @@ Supabase（Postgres + 登录 + 行级权限 RLS + Storage + 可选 PGroonga）
 
 ## 快速开始
 
-需要 Node.js 20.9+ 和一个 Supabase 项目。
+需要 Node.js 20.9+（CI 用 [`.nvmrc`](.nvmrc) 里的版本）和一个 Supabase 项目。
 
 ```bash
 npm install
@@ -115,6 +115,8 @@ npm run lint && npm run typecheck && npm run build
 
 `test:db` 会把 Supabase 的 `auth` schema 和角色用一个小桩替代，所以不需要 Docker；要连 PGroonga 一起测，在装了 PGroonga 的服务器上设 `WITH_PGROONGA=1`。
 
+GitHub Actions（[`ci.yml`](.github/workflows/ci.yml)）在每次推送到 `main` 和每个 PR 上跑两件事：`check`（`npm ci`、lint、类型检查、`npm test`、`npm run build`）和 `database`（起一个 PostgreSQL 16，跑 `test:db`）。构建只需要环境变量“存在”，用的是占位值，不连任何真实的项目。
+
 ## 设计要点
 
 **数据模型**（[`0004_tags_and_posts.sql`](supabase/migrations/0004_tags_and_posts.sql)）
@@ -155,7 +157,7 @@ npm run lint && npm run typecheck && npm run build
 
 **限流与查询缓存**
 
-- 限流（[`ratelimit.ts`](src/lib/server/ratelimit.ts)）：发布、编辑、评论、点赞、贴链接解析、搜作品、建标签、关注、登录这些动作都按用户（登录按 IP）限次数，固定窗口。配了 Redis 就用 `@upstash/ratelimit`，所有实例共享计数；没配，或者 Redis 慢 / 挂了，就退回本实例内存里计数，宁可限得松，也不把人锁在外面
+- 限流（[`ratelimit.ts`](src/lib/server/ratelimit.ts)）：所有限额写在一张表里（[`limits.ts`](src/lib/server/limits.ts) 的 `LIMITS`，每项有自己的计数器，测试保证不会重名，否则一种操作会吃掉另一种的额度）。发布、编辑、删除、评论、改资料、点赞、贴链接解析、搜作品、建标签、关注、传图、导出、登录都按用户（登录按 IP）限次数，站内搜索按 IP 限（在 [`proxy.ts`](src/proxy.ts) 里数，超了返回 429：搜索页每次请求会被 Next 渲染两次，写在页面里会把计数翻倍），固定窗口。配了 Redis 就用 `@upstash/ratelimit`，所有实例共享计数；没配，或者 Redis 慢 / 挂了，就退回本实例内存里计数，宁可限得松，也不把人锁在外面
 - 查询缓存（[`cache.ts`](src/lib/server/cache.ts) 的 `SharedCache`）：YouTube / B 站的视频信息缓存 1 小时，Bangumi / Open Library 的搜索缓存 10 分钟。先看本实例内存，再看 Redis，都没有才去问对方；有了 Redis，每条答案对整个站点大约每个有效期只问一次对方。拿不到可信答案的结果（被限流、反爬页面）不缓存
 - Redis 出问题时：每次调用最多等 1.2 秒；一旦失败，这个实例 30 秒内不再碰 Redis，直接用内存，只有第一个请求要付出超时的代价，之后自动重试
 - 它们和下面 Next 的 `'use cache'` 是两回事：`'use cache'` 缓存的是信息流这类自己数据库的查询，默认也是每个实例各自一份；想让它跨实例共享并让 `updateTag` 对所有实例生效，可以以后改用 `'use cache: remote'`
@@ -179,6 +181,8 @@ npm run lint && npm run typecheck && npm run build
 - **登录 cookie**：HttpOnly（页面脚本读不到，浏览器里本来也没有 Supabase 客户端用它），SameSite=Lax，保存 30 天，每次令牌刷新（活跃时最多每小时一次）都会重新写成再 30 天，所以是“连续 30 天不来才掉线”，不是每 30 天登录一次；生产环境（`NODE_ENV=production`）一律加 Secure，所以必须走 https：用 `next start` 在非 localhost 的 http 地址上访问会存不住登录；开发环境（`npm run dev`）跟着请求走，http 的 localhost / 局域网不加 Secure（Safari 和非 localhost 地址会拒收 Secure cookie），经代理的 https 请求看 `x-forwarded-proto`。访问令牌 1 小时过期，刷新令牌默认不过期，想限制“多久不用就掉线”可以在 Supabase 后台设置会话超时
 
 ### 运维
+
+- **错误和日志**：页面出错时显示中文的错误页（`error.tsx` 带“重试”，页面里的数据请求失败时用它；`global-error.tsx` 兜住连布局都出错的情况；`not-found.tsx` 是 404）。出错页上的“错误编号”就是 Next 的 `digest`，在 Vercel 的运行日志里搜这串数字能找到对应的那一行。服务端的错误统一写成一行 JSON（[`log-format.ts`](src/lib/log-format.ts)：`level`、`scope`、`message`，有的还带 `code`、`digest`、`stack` 和相关的内容 / 用户 id），页面渲染出错由 [`instrumentation.ts`](src/instrumentation.ts) 的 `onRequestError` 记，动作和接口里失败的数据库调用由 `failLogged` / `logError` 记；日志里只放 id，不放请求头、查询串和正文。浏览器里的动作（点赞、评论、发布……）如果连不上服务器，`attempt()`（[`attempt.ts`](src/lib/attempt.ts)）会把它变成“网络出错了”的提示，按钮不会一直卡在“发送中”
 
 - **下架**：`POST /api/admin/takedown`，`Authorization: Bearer $ADMIN_SECRET`，body `{"post":"<内容 id>"}`。内容对所有人（包括作者）立即隐藏并从缓存中失效，不删数据；传 `"restore": true` 可以恢复。流程和条款模板见 `/terms`（上线前请按所在地区法律修改；运营主体在美国时可登记 DMCA 指定代理人）
 - **失效检测**：`GET /api/cron/check-sources`，每次检查最久没检查过的 30 条带 YouTube / B 站视频的内容。平台没有给出可信答案时（限流、反爬页面）状态不变，但检查时间照样往前走，排到队尾，所以一批查不出结果的内容不会一直占着前 30 条、挤掉后面的；连续两次判定失效（`posts.source_fail_count`）才标记为 `dead`，之后再次检查到正常会自动恢复

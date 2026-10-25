@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { setLike } from "@/app/actions/social";
+import { attempt } from "@/lib/attempt";
 import { HeartIcon } from "./icons";
 
 /** A heart with a count: optimistic, and sends visitors to the login page first. */
@@ -32,7 +33,7 @@ export function LikeButton({
     const next = { liked: !state.liked, count: Math.max(0, state.count + (state.liked ? -1 : 1)) };
     setState(next);
     startTransition(async () => {
-      const result = await setLike(postId, next.liked);
+      const result = await attempt(() => setLike(postId, next.liked));
       if (result.ok) setState({ liked: next.liked, count: result.likeCount });
       else setState(previous);
     });

@@ -5,6 +5,7 @@ import { Cover } from "@/components/Cover";
 import { Pager } from "@/components/Pager";
 import { PostList } from "@/components/PostList";
 import { parsePage } from "@/lib/feed";
+import { logError } from "@/lib/server/log";
 import { searchPosts, type PostPage } from "@/lib/posts";
 import { listTags } from "@/lib/tags";
 import { TAG_KIND_LABEL, type TagListItem } from "@/lib/types";
@@ -19,13 +20,15 @@ async function Results({ searchParams }: Pick<PageProps<"/search">, "searchParam
   let posts: PostPage | null = null;
   let tags: TagListItem[] = [];
   let failed = false;
+  // anybody may search, signed in or not: the per-address limit is applied in proxy.ts (this page is rendered twice per request)
   if (q) {
     try {
       [posts, tags] = await Promise.all([
         searchPosts(q, page),
         page === 1 ? listTags({ q, sort: "hot" }, 6).then((r) => r.items) : Promise.resolve([]),
       ]);
-    } catch {
+    } catch (error) {
+      logError("search", error);
       failed = true;
     }
   }

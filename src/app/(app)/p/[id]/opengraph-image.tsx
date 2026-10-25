@@ -55,6 +55,8 @@ async function loadImage(url: string | null | undefined): Promise<string | null>
 export default async function Image({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const post = isUuid(id) ? await getPublicPost(id) : null;
+  // an unknown or private post has no share picture: not a render (and a font download) for every made-up id
+  if (!post) return new Response("Not found", { status: 404 });
 
   const headline = post ? (post.source ? sourceTitle(post.source) : "") : "";
   const text = post ? excerptOf(post.plain_text, 110) : "";

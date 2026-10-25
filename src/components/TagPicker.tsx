@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { searchTags } from "@/app/actions/tags";
+import { attempt } from "@/lib/attempt";
 import { MAX_POST_TAGS } from "@/lib/post-input";
 import { normalizeTagName, tagKey } from "@/lib/tag-name";
 import { TAG_KIND_LABEL, type TagListItem } from "@/lib/types";
@@ -33,7 +34,7 @@ export function TagPicker({ value, onChange }: { value: TagPick[]; onChange: (ne
   useEffect(() => {
     const ticket = ++latest.current;
     const timer = setTimeout(async () => {
-      const response = await searchTags(query);
+      const response = await attempt(() => searchTags(query));
       if (ticket === latest.current && response.ok) setResults(response.tags);
     }, 200);
     return () => clearTimeout(timer);

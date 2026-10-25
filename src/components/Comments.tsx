@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { addComment, deleteComment } from "@/app/actions/comments";
 import { MAX_COMMENT_LENGTH } from "@/lib/post-input";
+import { attempt } from "@/lib/attempt";
 import type { CommentData } from "@/lib/types";
 import { Avatar } from "./Avatar";
 
@@ -35,7 +36,7 @@ export function Comments({
   async function remove(comment: CommentData) {
     if (!confirm(comment.parent_id ? "删除这条回复？" : "删除这条评论？它下面的回复也会一起删除。")) return;
     setError(null);
-    const result = await deleteComment(comment.id);
+    const result = await attempt(() => deleteComment(comment.id));
     if (!result.ok) return setError(result.error);
     setComments((prev) => prev.filter((c) => c.id !== comment.id && c.parent_id !== comment.id));
   }
@@ -166,7 +167,7 @@ function CommentForm({
     if (busy || !text.trim()) return;
     setBusy(true);
     setError(null);
-    const result = await addComment({ postId, parentId, body: text });
+    const result = await attempt(() => addComment({ postId, parentId, body: text }));
     setBusy(false);
     if (!result.ok) return setError(result.error);
     setText("");
