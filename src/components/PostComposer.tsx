@@ -15,6 +15,7 @@ import { SourcePlayer } from "./players/SourcePlayer";
 import type { PlayerHandle } from "./players/types";
 import { TagPicker, type TagPick } from "./TagPicker";
 import { formatTimestamp } from "@/lib/time";
+import { useResetOnHide } from "@/lib/use-reset-on-hide";
 
 const TIME_HINT: Record<string, string> = {
   youtube: "“记录当前时间”会按播放器的当前时间加一个位置，可以接着写描述；写内容时按 Alt+T，会在光标处放一个可点击的时间标签。",
@@ -61,6 +62,22 @@ export function PostComposer({ post, presetTags = [] }: { post?: PostDetailData;
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(0);
   const [error, setError] = useState<string | null>(null);
+
+  // The page stays alive (hidden) after navigating away. Once the post is saved, put the form back to
+  // how it should look the next time it is opened: not stuck on "saving", and, for a new post, empty.
+  const resetWhenLeft = useResetOnHide(() => {
+    setSaving(false);
+    setError(null);
+    if (post) return; // an edited post keeps what was just saved
+    editorRef.current?.clear();
+    doc.current = EMPTY_DOC;
+    setIsEmpty(true);
+    setAttached(null);
+    setTags(presetTags);
+    setVisibility("public");
+    changeRows([]);
+    setStartAt(undefined);
+  });
 
   const provider = attached?.source.provider;
   const playable = provider === "youtube" || provider === "bilibili";
@@ -153,6 +170,7 @@ export function PostComposer({ post, presetTags = [] }: { post?: PostDetailData;
       setError(result.error);
       return;
     }
+    resetWhenLeft();
     router.push(`/p/${result.id}`);
     router.refresh();
   }
@@ -229,7 +247,7 @@ export function PostComposer({ post, presetTags = [] }: { post?: PostDetailData;
             取消
           </button>
           <button type="button" className="btn btn-primary" onClick={submit} disabled={saving || uploading > 0} title="Cmd/Ctrl + Enter">
-            {saving ? "发布中…" : uploading > 0 ? "图片上传中…" : post ? "保存修改" : "发布"}
+            {saving ? (post ? "保存中…" : "发布中…") : uploading > 0 ? "图片上传中…" : post ? "保存修改" : "发布"}
           </button>
         </span>
       </div>

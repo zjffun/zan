@@ -3,12 +3,15 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { updateProfile } from "@/app/actions/profile";
+import { useResetOnHide } from "@/lib/use-reset-on-hide";
 
 export function ProfileForm({ nickname, bio }: { nickname: string; bio: string }) {
   const router = useRouter();
   const [values, setValues] = useState({ nickname, bio });
   const [state, setState] = useState<{ error?: string; saved?: boolean }>({});
   const [busy, setBusy] = useState(false);
+  // the page stays alive (hidden) when you leave it: do not greet the next visit with an old "saved"
+  const clearWhenLeft = useResetOnHide(() => setState({}));
 
   async function submit() {
     setBusy(true);
@@ -17,6 +20,7 @@ export function ProfileForm({ nickname, bio }: { nickname: string; bio: string }
     setBusy(false);
     if (!result.ok) return setState({ error: result.error });
     setState({ saved: true });
+    clearWhenLeft();
     router.refresh();
   }
 

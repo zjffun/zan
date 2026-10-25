@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { createTag, createTagFromWork, searchWorks } from "@/app/actions/tags";
 import { MAX_TAG_NAME_LENGTH } from "@/lib/tag-name";
 import { TAG_KINDS, TAG_KIND_LABEL, type TagKind } from "@/lib/types";
+import { useResetOnHide } from "@/lib/use-reset-on-hide";
 import type { WorkCandidate } from "@/lib/works/types";
 import { Cover } from "./Cover";
 
@@ -23,6 +24,16 @@ export function NewTagForm() {
   const [creating, startCreating] = useTransition();
   const [busyId, setBusyId] = useState<string | null>(null);
   const latest = useRef(0);
+  const [formKey, setFormKey] = useState(0); // a new key gives the manual form empty fields again
+  // the page stays alive (hidden) after navigating to the new tag: do not bring it back half-done
+  const resetWhenLeft = useResetOnHide(() => {
+    setQuery("");
+    setResults(null);
+    setSearching(false);
+    setError(null);
+    setBusyId(null);
+    setFormKey((n) => n + 1);
+  });
 
   // debounced search; `latest` drops answers to outdated queries
   useEffect(() => {
@@ -48,8 +59,10 @@ export function NewTagForm() {
     setBusyId(key);
     startCreating(async () => {
       const response = await run();
-      if (response.ok) router.push(`/t/${response.tag.slug}`);
-      else {
+      if (response.ok) {
+        resetWhenLeft();
+        router.push(`/t/${response.tag.slug}`);
+      } else {
         setError(response.error);
         setBusyId(null);
       }
@@ -128,7 +141,7 @@ export function NewTagForm() {
         )
       ) : null}
 
-      <ManualForm disabled={creating} busy={busyId === "manual"} onSubmit={(input) => make(() => createTag(input), "manual")} />
+      <ManualForm key={formKey} disabled={creating} busy={busyId === "manual"} onSubmit={(input) => make(() => createTag(input), "manual")} />
     </div>
   );
 }

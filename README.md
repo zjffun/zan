@@ -163,6 +163,10 @@ npm run lint && npm run typecheck && npm run build
 
 公开信息流、标签页的内容列表和热门标签使用 `'use cache'`，发布 / 编辑 / 删除内容、改昵称时用 `updateTag("feed")` 立即失效；点赞数和评论数在卡片上最多滞后一两分钟。和“谁在看”有关的部分（顶栏、点赞状态、关注状态、私人内容）每次请求都现查，放在 `<Suspense>` 里流式返回，页面外壳是静态的。
 
+**页面状态**
+
+开了 Cache Components 之后，离开的页面不会卸载，只是被隐藏（React `<Activity>`），回来时输入框、按钮状态都还在，见 Next 的 [Preserving UI state](https://nextjs.org/docs/app/guides/preserving-ui-state)。对草稿这是好事；但表单提交成功后如果不处理，下次打开就会停在“发布中…”，或还留着已经发出去的内容。所以成功之后调用 [`useResetOnHide`](src/lib/use-reset-on-hide.ts)：页面一被隐藏就把表单重置（发布页清空、编辑页只清掉“保存中”、新建标签页清空、设置页清掉“已保存”）。没提交就离开的草稿不动。`/new/post?tag=…` 用不同的标签当 `key`，不会把上一个标签带过来。
+
 ## 部署
 
 - **Vercel**：导入仓库，设置上面的环境变量即可；[`vercel.json`](vercel.json) 里配置了每天一次的失效检测。注意 Vercel 免费档只允许非商业用途

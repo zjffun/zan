@@ -14,7 +14,8 @@ async function Composer({ searchParams }: Pick<PageProps<"/new/post">, "searchPa
   // coming from a tag page: that tag is already on the post
   const tag = slug ? await getTag(slug).catch(() => null) : null;
   const presetTags: TagPick[] = tag ? [{ id: tag.id, name: tag.name }] : [];
-  return <PostComposer presetTags={presetTags} />;
+  // another tag in the address is another form: the page keeps the earlier one alive, with its tags
+  return <PostComposer key={presetTags.map((t) => t.id).join(",")} presetTags={presetTags} />;
 }
 
 export default function NewPostPage(props: PageProps<"/new/post">) {
