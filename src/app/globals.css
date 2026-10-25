@@ -184,6 +184,24 @@ body {
 .anchor-chip[data-page]:not([data-t]):not([data-ep]) {
   cursor: default;
 }
+/* A label that makes the player jump: accent colour, a small play mark, a pointer. */
+.anchor-chip--seek {
+  cursor: pointer;
+}
+.anchor-chip--seek::before {
+  content: "\25B6\FE0E";
+  margin-right: 0.3em;
+  font-size: 0.6em;
+}
+/* A label that only says where: grey, no hover, nothing to click. */
+.anchor-chip--static {
+  background: var(--sunken);
+  color: var(--muted);
+  cursor: default;
+}
+.anchor-chip--static:hover {
+  filter: none;
+}
 
 /* ---- note text: rendered snapshots and the TipTap editor ---------------- */
 

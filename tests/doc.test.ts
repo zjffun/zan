@@ -100,7 +100,9 @@ describe("position labels written as text", () => {
 
   it("renders them as clickable labels and exports them as links", () => {
     const body = doc(p(text("@4:16 开始")));
-    expect(renderDocHtml(body)).toContain('<button type="button" class="anchor-chip" data-anchor-chip="" data-t="256" title="跳到 4:16">4:16</button>');
+    expect(renderDocHtml(body, { seekable: true })).toContain(
+      '<button type="button" class="anchor-chip anchor-chip--seek" data-anchor-chip="" data-t="256" title="跳到 4:16">4:16</button>',
+    );
     expect(docToMarkdown(body, { chipHref: (a) => `https://youtu.be/x?t=${a.t}` })).toBe("[4:16](https://youtu.be/x?t=256) 开始");
   });
 
@@ -192,11 +194,19 @@ describe("renderDocHtml", () => {
     expect(html).toBe('<p><a href="https://e.com/?a=1&amp;b=%222%22" target="_blank" rel="noopener noreferrer nofollow ugc"><em><strong>a</strong></em></a></p>');
   });
 
-  it("renders anchor chips as buttons carrying numeric data attributes", () => {
-    expect(renderDocHtml(doc(p(chip({ ep: 5, t: 754 }))))).toBe(
-      '<p><button type="button" class="anchor-chip" data-anchor-chip="" data-t="754" data-ep="5" title="跳到 12:34">E5 12:34</button></p>',
+  it("renders anchor chips as buttons when the post has a player, as plain labels when it has not", () => {
+    const body = doc(p(chip({ ep: 5, t: 754 })));
+    expect(renderDocHtml(body, { seekable: true })).toBe(
+      '<p><button type="button" class="anchor-chip anchor-chip--seek" data-anchor-chip="" data-t="754" data-ep="5" title="跳到 12:34">E5 12:34</button></p>',
     );
-    expect(renderDocHtml(doc(p(chip({ page: 132 }))))).toContain(">p.132</button>");
+    expect(renderDocHtml(body)).toBe('<p><span class="anchor-chip anchor-chip--static" data-anchor-chip="" data-t="754" data-ep="5">E5 12:34</span></p>');
+    expect(renderDocHtml(body, { seekable: false })).toBe(renderDocHtml(body));
+  });
+
+  it("never makes a page or chapter label a button, whatever the player", () => {
+    expect(renderDocHtml(doc(p(chip({ page: 132 }))), { seekable: true })).toBe(
+      '<p><span class="anchor-chip anchor-chip--static" data-anchor-chip="" data-page="132">p.132</span></p>',
+    );
   });
 
   it("never emits script or event handlers, whatever the input", () => {

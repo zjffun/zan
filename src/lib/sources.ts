@@ -132,6 +132,14 @@ export function anchorUrl(source: SourceLike | null | undefined, anchor: Pick<An
   return sourceUrl(source, anchor.t);
 }
 
+/**
+ * Whether the post page has a player that a time label can make jump: only the two video providers
+ * embed one, and a video that is gone has none.
+ */
+export function canSeek(source: SourceLike | null | undefined, status: "ok" | "dead" = "ok"): boolean {
+  return status === "ok" && (source?.provider === "youtube" || source?.provider === "bilibili");
+}
+
 /** Display name of a source: the title we saved, else something readable from the ref. */
 export function sourceTitle(source: SourceLike): string {
   if (source.meta?.title) {

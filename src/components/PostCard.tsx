@@ -56,7 +56,7 @@ export function PostCard({ post, liked, signedIn }: { post: PostCardData; liked:
             {post.anchors.length > 0 ? ` · ${anchorsLabel(post.anchors)}` : ""}
           </p>
         ) : null}
-        {!source && post.anchors.length > 0 ? <span className="anchor-chip !m-0 !cursor-default">{anchorsLabel(post.anchors)}</span> : null}
+        {!source && post.anchors.length > 0 ? <span className="anchor-chip anchor-chip--static !m-0">{anchorsLabel(post.anchors)}</span> : null}
 
         {post.tags.length > 0 || post.visibility === "private" ? (
           <div className="relative z-20 flex flex-wrap items-center gap-1.5">

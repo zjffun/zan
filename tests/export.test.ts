@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { exportPostsMarkdown } from "@/lib/export/markdown";
-import { anchorUrl, sourceTitle, sourceUrl } from "@/lib/sources";
+import { anchorUrl, canSeek, sourceTitle, sourceUrl } from "@/lib/sources";
 
 const para = (...content: unknown[]) => ({ type: "paragraph", content });
 const doc = (...content: unknown[]) => ({ type: "doc", content });
@@ -27,6 +27,16 @@ describe("source links", () => {
     expect(anchorUrl(book, { t: 90 })).toBeNull();
     expect(anchorUrl(yt, null)).toBeNull();
     expect(anchorUrl(null, { t: 1 })).toBeNull();
+  });
+
+  it("knows which posts have a player that a time label can move", () => {
+    expect(canSeek(yt)).toBe(true);
+    expect(canSeek(bili, "ok")).toBe(true);
+    expect(canSeek(yt, "dead")).toBe(false);
+    expect(canSeek(book)).toBe(false);
+    expect(canSeek({ provider: "link", ref: { url: "https://example.com" } })).toBe(false);
+    expect(canSeek(null)).toBe(false);
+    expect(canSeek(undefined)).toBe(false);
   });
 
   it("names sources readably", () => {

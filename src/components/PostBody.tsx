@@ -3,6 +3,8 @@
 import { useRef } from "react";
 import { anchorLabel, type Anchor } from "@/lib/anchor";
 import type { ChipAttrs } from "@/lib/doc/schema";
+import { canSeek } from "@/lib/sources";
+import { formatTimestamp } from "@/lib/time";
 import type { PostSource } from "@/lib/types";
 import { SourcePlayer } from "./players/SourcePlayer";
 import type { PlayerHandle } from "./players/types";
@@ -22,6 +24,7 @@ export function PostBody({
   html: string;
 }) {
   const playerRef = useRef<PlayerHandle>(null);
+  const seekable = canSeek(source, status);
 
   function seek(attrs: ChipAttrs) {
     if (attrs.t !== undefined) playerRef.current?.seekTo(attrs.t);
@@ -37,12 +40,17 @@ export function PostBody({
         <ul className="space-y-2">
           {anchors.map((anchor, index) => (
             <li key={index} className="flex items-baseline gap-2">
-              {anchor.t !== undefined && source ? (
-                <button type="button" className="anchor-chip !m-0 shrink-0" title="跳到这里" onClick={() => seek({ t: anchor.t })}>
+              {anchor.t !== undefined && seekable ? (
+                <button
+                  type="button"
+                  className="anchor-chip anchor-chip--seek !m-0 shrink-0"
+                  title={`跳到 ${formatTimestamp(anchor.t)}`}
+                  onClick={() => seek({ t: anchor.t })}
+                >
                   {anchorLabel(anchor)}
                 </button>
               ) : (
-                <span className="anchor-chip !m-0 shrink-0 !cursor-default">{anchorLabel(anchor)}</span>
+                <span className="anchor-chip anchor-chip--static !m-0 shrink-0">{anchorLabel(anchor)}</span>
               )}
               {anchor.note ? <span className="min-w-0 whitespace-pre-line break-words text-sm">{anchor.note}</span> : null}
             </li>

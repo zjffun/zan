@@ -42,8 +42,16 @@ function renderText(node: DocNode): string {
   return html;
 }
 
-function renderNode(node: DocNode): string {
-  const children = () => (node.content ?? []).map(renderNode).join("");
+export interface RenderOptions {
+  /**
+   * The post has a player that can jump to a time. Time labels are then buttons that look clickable;
+   * without one (no video, a plain link, a dead video) they are plain text that looks like it.
+   */
+  seekable?: boolean;
+}
+
+function renderNode(node: DocNode, options: RenderOptions): string {
+  const children = () => (node.content ?? []).map((child) => renderNode(child, options)).join("");
   switch (node.type) {
     case "text":
       return renderText(node);
@@ -56,8 +64,11 @@ function renderNode(node: DocNode): string {
         .map((k) => ` data-${k}="${a[k] as number}"`)
         .join("");
       const label = escapeHtml(chipLabel(a));
-      const title = typeof a.t === "number" ? ` title="跳到 ${formatTimestamp(a.t)}"` : "";
-      return `<button type="button" class="anchor-chip" data-anchor-chip=""${data}${title}>${label}</button>`;
+      if (options.seekable && typeof a.t === "number") {
+        const title = ` title="跳到 ${formatTimestamp(a.t)}"`;
+        return `<button type="button" class="anchor-chip anchor-chip--seek" data-anchor-chip=""${data}${title}>${label}</button>`;
+      }
+      return `<span class="anchor-chip anchor-chip--static" data-anchor-chip=""${data}>${label}</span>`;
     }
     case "paragraph":
       return `<p>${children()}</p>`;
@@ -95,6 +106,6 @@ function renderNode(node: DocNode): string {
  * inject with dangerouslySetInnerHTML: text and attributes are escaped, links
  * are limited to http/https/mailto, and unknown nodes never get this far.
  */
-export function renderDocHtml(doc: unknown): string {
-  return (sanitizeDocOrEmpty(doc).content ?? []).map(renderNode).join("");
+export function renderDocHtml(doc: unknown, options: RenderOptions = {}): string {
+  return (sanitizeDocOrEmpty(doc).content ?? []).map((node) => renderNode(node, options)).join("");
 }
