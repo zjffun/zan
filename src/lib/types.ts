@@ -1,4 +1,3 @@
-import type { Anchor } from "./anchor";
 
 /** What sort of thing a tag is about. Plain topics have no kind. */
 export const TAG_KINDS = ["anime", "book", "manga", "game", "film", "other"] as const;
@@ -77,8 +76,6 @@ export interface PostCardData {
   excerpt: string;
   source: PostSource | null;
   source_status: "ok" | "dead";
-  /** where in the video or book the post points, each with an optional note */
-  anchors: Anchor[];
   visibility: Visibility;
   like_count: number;
   comment_count: number;

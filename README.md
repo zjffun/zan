@@ -123,7 +123,7 @@ GitHub Actions（[`ci.yml`](.github/workflows/ci.yml)）在每次推送到 `main
 
 - `profiles`：每个账号一份公开资料（昵称、简介），注册时由触发器生成默认昵称，昵称不区分大小写唯一
 - `tags`：任何人都能建；名字不区分大小写唯一，来自 Bangumi / Open Library 的标签用外部 ID 去重，名字、封面和类型由服务端向上游重新抓取，不信任客户端提交的内容；页面用随机短 `slug` 寻址，所以名字里可以有任何字符
-- `posts`：一条独立的内容。`body`（TipTap JSON）+ 抽出来的 `plain_text`（给搜索和卡片摘要用）、可选的 `source`（视频或链接的 ID 与元数据快照，视频被删后内容仍然看得懂）和 `anchors`（位置列表，最多 20 个，每个是时间 / 集数 / 页码 / 章节 / 百分比 + 不超过 200 字的描述 `note`；[`0007_post_positions.sql`](supabase/migrations/0007_post_positions.sql) 把旧的单个 `anchor` 转了过来，旧列暂时留着，没有 `anchors` 的老内容还读它，之后可以再删。发布页已经不再提供这个位置列表，位置写在正文里；老内容的位置列表照常显示在正文上面，打开编辑时它们会变成正文开头的几行（时间、页码和集数是可点击的标签，时间段、章节、百分比是文字），保存后列表为空，不会重复显示）、`visibility`（`public` / `private`）、点赞数和评论数
+- `posts`：一条独立的内容。`body`（TipTap JSON）+ 抽出来的 `plain_text`（给搜索和卡片摘要用）、可选的 `source`（视频或链接的 ID 与元数据快照，视频被删后内容仍然看得懂）、`visibility`（`public` / `private`）、点赞数和评论数。位置（时间、页码、集数……）就是正文里的文字：只有 `@12:34` 这样的时间是可点击的标签。以前内容有单独的位置列表（`anchor`、`anchors`），[`0010_positions_into_text.sql`](supabase/migrations/0010_positions_into_text.sql) 把剩下的位置逐条写到各自正文的开头，[`0011_drop_old_positions.sql`](supabase/migrations/0011_drop_old_positions.sql) 再把两列删掉
 - `post_tags`：内容与标签的多对多，每条内容最多 5 个
 - `comments`（一层回复）、`likes`、`favorites`、`tag_follows`
 
@@ -139,14 +139,14 @@ GitHub Actions（[`ci.yml`](.github/workflows/ci.yml)）在每次推送到 `main
 - **内容里只存“钥匙”，不存地址**：图片节点是 `{ key: "<作者 id>/<随机 id>.webp" }`（[`src/lib/image.ts`](src/lib/image.ts)），清洗时只认这种格式，所以内容没法指向别人的服务器：没有盗链、追踪像素和 `data:` 图片，换环境也不用改内容。页面里的地址是 `/media/<钥匙>`，[`next.config.ts`](next.config.ts) 把它改写到存储桶的公开地址，所以 CSP 的 `img-src` 仍然只有 `'self'` 和几个已知图床，页面里也不会出现 Supabase 的地址
 - **上传流程**：粘贴 / 拖入 / 选文件后，浏览器先把图缩到长边 1600 px 并转成 WebP（不支持 WebP 的浏览器用 JPEG），重画一遍也去掉了照片里的 EXIF（含 GPS 位置）；GIF 原样上传（≤ 3 MB），免得动画被压成静态。再 `POST /api/upload`：要求已登录和同源，按用户限次（每分钟 12 张、每天 60 张），不信任浏览器给的类型，按文件头判断是 PNG / JPEG / WebP / GIF 并读出尺寸（SVG、HTML 等一律拒绝），≤ 3 MB、长边 ≤ 4096，然后用 service role 写进存储桶，钥匙由服务端生成，放在上传者自己的 id 下
 - **只有服务端能写**：存储桶没有任何 insert 策略，登录用户拿自己的令牌直接调 Storage 也写不进去，绕不过上面的检查；桶本身也限制了类型和 3 MB
-- **发布时再查一遍**（`preparePost`）：每条最多 9 张，且图片必须是发布者自己上传的；只有图片、没有文字的内容，搜索文本记为 `[图片]`（数据库要求内容至少有文字、视频或位置之一，卡片上也不至于空白）
+- **发布时再查一遍**（`preparePost`）：每条最多 9 张，且图片必须是发布者自己上传的；只有图片、没有文字的内容，搜索文本记为 `[图片]`（数据库要求内容至少有文字或一个视频 / 链接，卡片上也不至于空白）
 - **私密内容的图片**：桶是公开的，图片地址里有随机 id，不可猜但知道链接的人都能看，和私密内容本身的“仅自己可见”不是一个强度
 - **导出 Markdown**：图片写成 `![](https://你的站点/media/…)`；文件名不会重复，所以响应带一年的缓存头
 - **还没做**：删掉内容或编辑时去掉图片，存储桶里的文件不会被清理（免费档 1 GB，大约两千张）；信息流卡片还不显示图片（可以用第一张当封面）；图片没有填写说明文字的界面（`alt` 字段已支持）
 
 **防 XSS**
 
-内容没有任何“原始 HTML”节点。写入时服务端用白名单（`src/lib/doc/schema.ts`）清洗 TipTap JSON：只保留已知节点、标记和属性，链接只允许 `http(s)` / `mailto`；渲染用同一套白名单从 JSON 生成转义过的 HTML。评论是纯文本，渲染时由 React 转义。
+内容没有任何“原始 HTML”节点。写入时服务端用白名单（`src/lib/doc/schema.ts`）清洗 TipTap JSON：只保留已知节点、标记和属性，链接只允许 `http(s)` / `mailto`；渲染用同一套白名单从 JSON 生成转义过的 HTML。评论用同一个编辑器，存成 `comments.doc`，服务端用更小的白名单（`sanitizeComment`：段落、引用、列表、代码块、链接、时间标签，没有图片和标题）清洗，字数按纯文本算 1–1000，渲染成 HTML 也在服务端；点评论里的时间标签会让上面的播放器跳过去。编辑器只在有人点评论框时才加载。
 
 **平台与外部接口**
 
@@ -175,7 +175,7 @@ GitHub Actions（[`ci.yml`](.github/workflows/ci.yml)）在每次推送到 `main
 - **Vercel**：导入仓库，设置上面的环境变量即可；[`vercel.json`](vercel.json) 里配置了每天一次的失效检测。注意 Vercel 免费档只允许非商业用途
 - **从本机用命令行部署**（不需要先把 GitHub 仓库连到 Vercel）：`npx vercel login`，`npx vercel link --project <名字>`，用 `printf %s "$值" | npx vercel env add 名字 -e production --sensitive` 逐个写入环境变量，再 `npx vercel deploy --prod`。[`vercel.json`](vercel.json) 把函数放在东京（`hnd1`），和 Supabase 的东京区域同区；换了数据库区域，这里也要改
 - **`package-lock.json` 里的下载地址必须是公网源**：锁文件里的 `resolved` 如果指向 Vercel 访问不到的地址，`npm install` 会直接失败。用 `npm install --registry=https://registry.npmjs.org/` 重新生成；`npm test` 里的 `tests/package-lock.test.ts` 会检查每一项都来自 `registry.npmjs.org`
-- **上线带图片、多位置功能的版本前**，先在 Supabase 的 SQL 编辑器里按顺序运行 [`0006_post_images.sql`](supabase/migrations/0006_post_images.sql)（建存储桶 `post-images`，可重复运行）、[`0007_post_positions.sql`](supabase/migrations/0007_post_positions.sql)（只增加列、不删旧列，所以先迁移、后部署，或反过来都不会让现有页面坏掉；不可重复运行）和 [`0008_edited_means_edited.sql`](supabase/migrations/0008_edited_means_edited.sql)（只有正文、链接、位置、可见范围真的改了，才更新“已编辑”的时间；失效检测、下架、不改内容的保存都不算；可重复运行。之前被失效检测动过的内容会保留那个时间，分不出哪些是真编辑）；环境变量不用加。`/media/…` 的改写在构建时读 `SUPABASE_URL`，所以这个变量要在 Vercel 的构建环境里也有。Vercel 函数的请求体上限是 4.5 MB，所以上传限制在 3 MB 以内，靠浏览器先缩小
+- **上线带图片、多位置功能的版本前**，先在 Supabase 的 SQL 编辑器里按顺序运行 [`0006_post_images.sql`](supabase/migrations/0006_post_images.sql)（建存储桶 `post-images`，可重复运行）、[`0007_post_positions.sql`](supabase/migrations/0007_post_positions.sql)（只增加列、不删旧列，所以先迁移、后部署，或反过来都不会让现有页面坏掉；不可重复运行）和 [`0008_edited_means_edited.sql`](supabase/migrations/0008_edited_means_edited.sql)（只有正文、链接、位置、可见范围真的改了，才更新“已编辑”的时间；失效检测、下架、不改内容的保存都不算；可重复运行。之前被失效检测动过的内容会保留那个时间，分不出哪些是真编辑）；环境变量不用加。之后的 [`0009_rich_comments.sql`](supabase/migrations/0009_rich_comments.sql)（评论加一列 `doc`，只增加，先后部署都行）和 [`0010_positions_into_text.sql`](supabase/migrations/0010_positions_into_text.sql)（只改数据：把位置列表写进正文，运行 0011 之前可重复运行）也在部署前运行；[`0011_drop_old_positions.sql`](supabase/migrations/0011_drop_old_positions.sql) 要等新版本部署好之后再运行，因为旧版本还会读那两列。`/media/…` 的改写在构建时读 `SUPABASE_URL`，所以这个变量要在 Vercel 的构建环境里也有。Vercel 函数的请求体上限是 4.5 MB，所以上传限制在 3 MB 以内，靠浏览器先缩小
 - **Supabase** 免费项目长时间不活跃会被暂停；有稳定用户后再升级。免费档存储 1 GB、单文件最大 50 MB
 - 限流和对外部网站的查询缓存：无服务器环境下建议配 Upstash Redis（环境变量见上），不配也能跑，但各实例各算各的，限额形同虚设，B 站更容易把我们拦掉
 - **登录 cookie**：HttpOnly（页面脚本读不到，浏览器里本来也没有 Supabase 客户端用它），SameSite=Lax，保存 30 天，每次令牌刷新（活跃时最多每小时一次）都会重新写成再 30 天，所以是“连续 30 天不来才掉线”，不是每 30 天登录一次；生产环境（`NODE_ENV=production`）一律加 Secure，所以必须走 https：用 `next start` 在非 localhost 的 http 地址上访问会存不住登录；开发环境（`npm run dev`）跟着请求走，http 的 localhost / 局域网不加 Secure（Safari 和非 localhost 地址会拒收 Secure cookie），经代理的 https 请求看 `x-forwarded-proto`。访问令牌 1 小时过期，刷新令牌默认不过期，想限制“多久不用就掉线”可以在 Supabase 后台设置会话超时
@@ -193,7 +193,7 @@ GitHub Actions（[`ci.yml`](.github/workflows/ci.yml)）在每次推送到 `main
 - B 站播放器读不到当前时间：只能手输或粘贴带 `?t=` 的链接；以后的浏览器插件可以直接读页面里 `video` 元素的 `currentTime`
 - B 站接口是非官方的，随时可能变化
 - 标签没有审核，也不能改名、合并或删除（只能由运营者在数据库里处理）；任何登录用户都可以新建标签
-- 评论只有一层回复，不能编辑，也不能贴图；没有举报评论的入口，也没有通知
+- 评论只有一层回复，不能编辑，也不能贴图（可以用粗体、链接、引用、列表、代码和时间标签）；没有举报评论的入口，也没有通知
 - 图片没有配额和回收：每个用户每天最多传 60 张，但不会清理不再被引用的图片；下架一条内容只是隐藏它，图片文件仍在存储桶里
 - 每个用户的内容 / 标签 / 评论数量没有配额，只有每个用户的操作频率限制（配了 Redis 才跨实例生效，见“限流与查询缓存”）
 

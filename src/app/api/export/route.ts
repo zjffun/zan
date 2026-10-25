@@ -1,15 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { readAnchors } from "@/lib/anchor";
 import { getCurrentUser } from "@/lib/dal";
 import { exportPostsMarkdown, type ExportPost } from "@/lib/export/markdown";
 import { enforce, LIMITS } from "@/lib/server/limits";
 import { logError } from "@/lib/server/log";
 import { createClient } from "@/lib/supabase/server";
 
-interface Row extends Omit<ExportPost, "tags" | "anchors"> {
-  /** the list of positions; `anchor` is the old single position of posts from before the list existed */
-  anchors: unknown;
-  anchor: unknown;
+interface Row extends Omit<ExportPost, "tags"> {
   post_tags: { tag: { name: string } | null }[] | null;
 }
 
@@ -25,7 +21,7 @@ export async function GET(request: NextRequest) {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("posts")
-    .select("created_at, visibility, source, source_status, anchor, anchors, body, plain_text, post_tags(tag:tags(name))")
+    .select("created_at, visibility, source, source_status, body, plain_text, post_tags(tag:tags(name))")
     .eq("author", user.id)
     .order("created_at", { ascending: true })
     .limit(5000);
@@ -36,9 +32,8 @@ export async function GET(request: NextRequest) {
 
   const today = new Date().toISOString().slice(0, 10);
   const markdown = exportPostsMarkdown({
-    posts: ((data ?? []) as unknown as Row[]).map(({ post_tags, anchor, anchors, ...post }) => ({
+    posts: ((data ?? []) as unknown as Row[]).map(({ post_tags, ...post }) => ({
       ...post,
-      anchors: readAnchors(anchors, anchor),
       tags: (post_tags ?? []).flatMap((row) => (row.tag ? [row.tag] : [])),
     })),
     exportedAt: today,

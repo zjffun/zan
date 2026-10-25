@@ -5,8 +5,7 @@ import { useRef, useState } from "react";
 import { createPost, updatePost } from "@/app/actions/posts";
 import { attempt } from "@/lib/attempt";
 import { firstChipTime } from "@/lib/doc/chips";
-import { withLegacyPositions } from "@/lib/doc/legacy-positions";
-import { EMPTY_DOC, type ChipAttrs, type DocNode } from "@/lib/doc/schema";
+import { EMPTY_DOC, sanitizeDocOrEmpty, type ChipAttrs, type DocNode } from "@/lib/doc/schema";
 import { MAX_POST_TAGS } from "@/lib/post-input";
 import type { PostDetailData, Visibility } from "@/lib/types";
 import { NoteEditor, type NoteEditorHandle } from "./editor/NoteEditor";
@@ -47,8 +46,7 @@ export function PostComposer({ post, presetTags = [] }: { post?: PostDetailData;
 
   const editorRef = useRef<NoteEditorHandle>(null);
   const playerRef = useRef<PlayerHandle>(null);
-  // an older post kept its positions in a list of their own: they open as lines at the top of the text
-  const [startDoc] = useState(() => (post ? withLegacyPositions(post.body, post.anchors) : undefined));
+  const [startDoc] = useState(() => (post ? sanitizeDocOrEmpty(post.body) : undefined));
   const doc = useRef<DocNode>(startDoc ?? EMPTY_DOC);
   const [isEmpty, setIsEmpty] = useState(!post);
 

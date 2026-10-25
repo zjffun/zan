@@ -32,20 +32,20 @@ insert into public.tags (id, slug, name, kind, description, created_by) values
   ('de000000-0000-4000-8000-000000000007', 'seedtag007', '艾尔登法环', 'game',  'ELDEN RING', :'dev_id');
 
 -- These are samples that show how posts look, not claims about the works.
-insert into public.posts (id, author, body, plain_text, source, anchors, visibility, created_at) values
+insert into public.posts (id, author, body, plain_text, source, visibility, created_at) values
   ('de100000-0000-4000-8000-000000000001', :'xm_id',
    '{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"示例：番剧记“第几集 + 时间码”，比如 "},{"type":"anchorChip","attrs":{"ep":5,"t":754}},{"type":"text","text":"。点一下标签，播放器就跳到那一刻。"}]}]}',
    '示例：番剧记“第几集 + 时间码”，比如 E5 12:34。点一下标签，播放器就跳到那一刻。',
-   null, '[{"ep":5,"t":754,"note":"点一下位置标签，播放器就跳到这一刻"}]', 'public', now() - interval '3 hours'),
+   null, 'public', now() - interval '3 hours'),
   ('de100000-0000-4000-8000-000000000002', :'amu_id',
    '{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"示例：书只记页码和你自己摘的短句，想法写在下面。导出 Markdown 时页码会变成 "},{"type":"anchorChip","attrs":{"page":132}},{"type":"text","text":"。"}]}]}',
    '示例：书只记页码和你自己摘的短句，想法写在下面。导出 Markdown 时页码会变成 p.132。' || E'\n' || '这里放你自己摘的短句，200 字以内。',
-   null, '[{"page":132,"note":"这里放你自己摘的短句，200 字以内。"},{"page":140,"note":"可以加多个位置，每个位置写一句描述。"}]', 'public', now() - interval '2 hours'),
+   null, 'public', now() - interval '2 hours'),
   ('de100000-0000-4000-8000-000000000003', :'dev_id',
    '{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"示例：贴一个 B 站或 YouTube 链接，zan 会嵌入官方播放器，在 "},{"type":"anchorChip","attrs":{"t":43}},{"type":"text","text":" 这样的时间标签上点一下就能跳转。"}]}]}',
    '示例：贴一个 B 站或 YouTube 链接，zan 会嵌入官方播放器，在 0:43 这样的时间标签上点一下就能跳转。',
    '{"provider":"youtube","ref":{"videoId":"dQw4w9WgXcQ"},"meta":{"title":"Rick Astley - Never Gonna Give You Up (Official Video)","author":"Rick Astley","thumbnail":"https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg","duration":213}}',
-   '[{"t":43,"note":"点这里，播放器会跳到这一刻"},{"t":90,"t_end":96,"note":"每个位置都可以写自己的描述"}]', 'public', now() - interval '90 minutes'),
+   'public', now() - interval '90 minutes'),
   ('de100000-0000-4000-8000-000000000004', :'dev_id',
    '{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"示例：游戏、网页、任何外链都可以挂在内容后面，不必有位置标签。"}]}]}',
    '示例：游戏、网页、任何外链都可以挂在内容后面，不必有位置标签。',

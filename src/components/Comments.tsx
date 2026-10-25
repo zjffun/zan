@@ -18,7 +18,7 @@ import { RichHtml } from "./RichHtml";
 // The editor is most of what a post's author needs and nothing a reader does: it is fetched when somebody starts writing.
 const NoteEditor = dynamic(() => import("./editor/NoteEditor").then((module) => module.NoteEditor), {
   ssr: false,
-  loading: () => <div className="h-[8.5rem] rounded-lg border border-line bg-surface" aria-hidden="true" />,
+  loading: () => <div className="h-[6.5rem] rounded-lg border border-line bg-surface" aria-hidden="true" />,
 });
 
 const timeFormat = new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Shanghai" });
@@ -219,7 +219,7 @@ function CommentForm({
       ) : (
         <button
           type="button"
-          className="input flex min-h-[8.5rem] w-full items-start justify-start text-left text-muted"
+          className="input block w-full text-left text-muted"
           onClick={() => setOpen(true)}
         >
           {placeholder}

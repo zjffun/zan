@@ -37,8 +37,6 @@ function columns(prepared: PreparedPost) {
     body: prepared.body,
     plain_text: prepared.plain_text,
     source: prepared.source,
-    anchors: prepared.anchors,
-    anchor: null, // the old single position: superseded by `anchors`
     visibility: prepared.visibility,
   };
 }

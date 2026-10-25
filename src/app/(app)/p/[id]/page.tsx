@@ -108,8 +108,7 @@ async function PostPage({ params }: Pick<PageProps<"/p/[id]">, "params">) {
           <PostBody
             source={post.source}
             status={post.source_status}
-            anchors={post.anchors}
-            startAt={post.anchors.find((anchor) => anchor.t !== undefined)?.t ?? firstChipTime(sanitizeDocOrEmpty(post.body))}
+            startAt={firstChipTime(sanitizeDocOrEmpty(post.body))}
             html={renderDocHtml(post.body, { seekable })}
           />
         </div>

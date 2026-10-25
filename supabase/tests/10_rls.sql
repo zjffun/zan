@@ -11,7 +11,7 @@
 --   tags      50..01 Cowboy Bebop (anime, A)   50..02 Dune (book, B)   50..03 jazz (topic, A)
 --             50..04 Hades, 50..05 Celeste, 50..06 Tetris (games, C)
 --             50..07 "100%", 50..08 "A_B", 50..09 "AXB", 50..0a "back\slash" (names that stress LIKE)
---   posts     60..a1 A public (youtube + anchor)   60..a2 A private   60..a3 A removed
+--   posts     60..a1 A public (youtube)   60..a2 A private   60..a3 A removed
 --             60..b1 B public   60..b2 B private   60..c1 C public (source only, no text)
 --   comments  70..01 B on a1,  70..02 C replying to it,  70..03 A on its own private a2
 --   follows   Bebop: A, B   Celeste: A, B, C
@@ -89,19 +89,19 @@ insert into public.tags (id, slug, name, kind, external, created_by, created_at)
   ('50000000-0000-0000-0000-000000000009', 'axb00001', 'AXB',          null,    '{}',                         :C, '2024-02-06'),
   ('50000000-0000-0000-0000-00000000000a', 'slash001', 'back\slash',   null,    '{}',                         :C, '2024-02-07');
 
-insert into public.posts (id, author, body, plain_text, source, anchor, visibility, removed_at, created_at) values
+insert into public.posts (id, author, body, plain_text, source, visibility, removed_at, created_at) values
   ('60000000-0000-0000-0000-0000000000a1', :A, '{"type":"doc","content":[]}', 'public note about the opening',
-     '{"provider":"youtube","ref":{"videoId":"dQw4w9WgXcQ"},"meta":{"title":"t"}}', '{"t":754}', 'public', null, '2024-05-01'),
+     '{"provider":"youtube","ref":{"videoId":"dQw4w9WgXcQ"},"meta":{"title":"t"}}', 'public', null, '2024-05-01'),
   ('60000000-0000-0000-0000-0000000000a2', :A, '{"type":"doc","content":[]}', 'secret note on the ending',
-     null, null, 'private', null, '2024-05-02'),
+     null, 'private', null, '2024-05-02'),
   ('60000000-0000-0000-0000-0000000000a3', :A, '{"type":"doc","content":[]}', 'taken down note',
-     null, null, 'public', '2024-05-03', '2024-05-03'),
+     null, 'public', '2024-05-03', '2024-05-03'),
   ('60000000-0000-0000-0000-0000000000b1', :B, '{"type":"doc","content":[]}', 'dune review: 100% worth it',
-     null, null, 'public', null, '2024-05-04'),
+     null, 'public', null, '2024-05-04'),
   ('60000000-0000-0000-0000-0000000000b2', :B, '{"type":"doc","content":[]}', 'private dune thoughts',
-     null, null, 'private', null, '2024-05-05'),
+     null, 'private', null, '2024-05-05'),
   ('60000000-0000-0000-0000-0000000000c1', :C, '{"type":"doc","content":[]}', '',
-     '{"provider":"link","ref":{"url":"https://example.com"}}', null, 'public', null, '2024-05-06');
+     '{"provider":"link","ref":{"url":"https://example.com"}}', 'public', null, '2024-05-06');
 
 insert into public.post_tags (post_id, tag_id) values
   ('60000000-0000-0000-0000-0000000000a1', '50000000-0000-0000-0000-000000000001'),
@@ -465,49 +465,22 @@ select t.ok((select source_status from public.posts where plain_text = 'a fresh 
 select t.ok((select created_at from public.posts where plain_text = 'a fresh note') is not null
         and (select updated_at from public.posts where plain_text = 'a fresh note') is not null, 'timestamps are set');
 
--- a post needs text, a source or an anchor
+-- a post needs text or a source
 select t.ok(t.rows($$ insert into public.posts (body, source) values ('{}', '{"provider":"link","ref":{"url":"https://example.com"}}') $$) = 1,
   'a post can be just a source');
-select t.ok(t.rows($$ insert into public.posts (body, anchor) values ('{}', '{"t":12}') $$) = 1, 'a post can be just an anchor');
 select t.ok(t.rows($$ insert into public.posts (body, plain_text, visibility) values ('{}', 'only me', 'private') $$) = 1,
   'a post can be private');
 select t.raises($$ insert into public.posts (body, plain_text) values ('{}', '') $$,
   'an empty post is rejected', '23514');
-select t.raises($$ insert into public.posts (body) values ('{}') $$, 'a post without text, source or anchor is rejected', '23514');
-select t.raises($$ insert into public.posts (body, plain_text, source, anchor) values ('{}', '', null, null) $$,
+select t.raises($$ insert into public.posts (body) values ('{}') $$, 'a post without text or a source is rejected', '23514');
+select t.raises($$ insert into public.posts (body, plain_text, source) values ('{}', '', null) $$,
   'explicit nulls are rejected too', '23514');
 
--- anchors
-select t.ok(t.rows($$ insert into public.posts (body, anchor) values ('{}', jsonb_build_object('page', 132, 'quote', repeat('q', 200))) $$) = 1,
-  'a 200 character quote is fine');
-select t.raises($$ insert into public.posts (body, anchor) values ('{}', jsonb_build_object('page', 132, 'quote', repeat('q', 201))) $$,
-  'a quote over 200 characters is rejected', '23514');
-select t.ok(t.rows($$ insert into public.posts (body, anchor) values ('{}', jsonb_build_object('page', 132, 'quote', repeat('攒', 200))) $$) = 1,
-  'the quote limit counts characters, not bytes');
-select t.raises($$ insert into public.posts (body, plain_text, anchor) values ('{}', 'x', '[]') $$, 'anchor must be an object (array)', '23514');
-select t.raises($$ insert into public.posts (body, plain_text, anchor) values ('{}', 'x', '5') $$, 'anchor must be an object (number)', '23514');
-
--- positions: a list, each with an optional note (migration 0007)
-select t.ok((select anchors from public.posts where plain_text = 'a fresh note') = '[]'::jsonb, 'a post starts with no positions');
-select t.ok(t.rows($$ insert into public.posts (body, anchors) values ('{}', '[{"t":12,"note":"开场"},{"t":900,"t_end":960},{"page":132,"note":"x"}]') $$) = 1,
-  'a post can be just a list of positions');
-select t.ok(t.rows($$ insert into public.posts (body, anchors) values ('{}', jsonb_build_array(jsonb_build_object('page', 1, 'note', repeat('攒', 200)))) $$) = 1,
-  'a 200 character note is fine, counted in characters');
-select t.raises($$ insert into public.posts (body, anchors) values ('{}', jsonb_build_array(jsonb_build_object('page', 1, 'note', repeat('q', 201)))) $$,
-  'a note over 200 characters is rejected', '23514');
-select t.raises($$ insert into public.posts (body, anchors) values ('{}', jsonb_build_array(jsonb_build_object('t', 1, 'note', 'ok'), jsonb_build_object('t', 2, 'note', repeat('q', 201)))) $$,
-  'every note is checked, not only the first', '23514');
-select t.raises($$ insert into public.posts (body, plain_text, anchors) values ('{}', 'x', '{"t":1}') $$, 'anchors must be an array (object)', '23514');
-select t.raises($$ insert into public.posts (body, plain_text, anchors) values ('{}', 'x', '5') $$, 'anchors must be an array (number)', '23514');
-select t.raises($$ insert into public.posts (body, plain_text, anchors) values ('{}', 'x', '[5]') $$, 'every position must be an object (number)', '23514');
-select t.raises($$ insert into public.posts (body, plain_text, anchors) values ('{}', 'x', '[[1]]') $$, 'every position must be an object (array)', '23514');
-select t.raises($$ insert into public.posts (body, plain_text, anchors) values ('{}', 'x', null) $$, 'anchors cannot be null', '23502');
-select t.ok(t.rows($$ insert into public.posts (body, anchors) select '{}', jsonb_agg(jsonb_build_object('t', n)) from generate_series(1, 20) n $$) = 1,
-  'twenty positions are fine');
-select t.raises($$ insert into public.posts (body, anchors) select '{}', jsonb_agg(jsonb_build_object('t', n)) from generate_series(1, 21) n $$,
-  'twenty-one positions are too many', '23514');
-select t.raises($$ insert into public.posts (body, plain_text, anchors) values ('{}', '', '[]') $$,
-  'no text, no source and no positions is still an empty post', '23514');
+-- the lists of positions are gone (migrations 0010 and 0011): a position is a line of text now
+select t.ok(not exists (select 1 from information_schema.columns
+                         where table_schema = 'public' and table_name = 'posts' and column_name in ('anchor', 'anchors')),
+  'posts have no list of positions any more');
+select t.ok(to_regprocedure('public.anchors_are_valid(jsonb)') is null, 'and nothing is left of its check');
 
 -- source, body, text, visibility
 select t.raises($$ insert into public.posts (body, plain_text, source) values ('{}', 'x', '[]') $$, 'source must be an object', '23514');
@@ -565,20 +538,17 @@ select t.ok((select count(*) from public.posts where author = :A) = 3, 'and all 
 select set_config('request.jwt.claims', json_build_object('sub', :A::text)::text, true);
 set local role authenticated;
 select t.ok(t.rows($$ update public.posts set plain_text = 'edited', body = '{"type":"doc","content":[{"type":"paragraph"}]}',
-                                                visibility = 'private', anchor = '{"t":99}'
+                                                visibility = 'private'
                       where id = '60000000-0000-0000-0000-0000000000a1' $$) = 1,
   'the author can edit content and visibility');
 select t.ok((select plain_text from public.posts where id = '60000000-0000-0000-0000-0000000000a1') = 'edited'
-        and (select visibility from public.posts where id = '60000000-0000-0000-0000-0000000000a1') = 'private'
-        and (select anchor ->> 't' from public.posts where id = '60000000-0000-0000-0000-0000000000a1') = '99',
+        and (select visibility from public.posts where id = '60000000-0000-0000-0000-0000000000a1') = 'private',
   'the edit is stored');
-select t.raises($$ update public.posts set plain_text = '', source = null, anchor = null where id = '60000000-0000-0000-0000-0000000000a1' $$,
+select t.raises($$ update public.posts set plain_text = '', source = null where id = '60000000-0000-0000-0000-0000000000a1' $$,
   'editing cannot leave a post empty', '23514');
 insert into public.posts (body, source) values ('{}', '{"provider":"link","ref":{"url":"https://example.org"}}');
 select t.raises($$ update public.posts set source = null where author = '00000000-0000-0000-0000-00000000000a' and plain_text = '' $$,
   'a source-only post cannot drop its source', '23514');
-select t.raises($$ update public.posts set anchor = jsonb_build_object('quote', repeat('q', 201)) where id = '60000000-0000-0000-0000-0000000000a1' $$,
-  'an edit cannot make the quote longer than 200 characters', '23514');
 select t.raises($$ update public.posts set visibility = 'secret' where id = '60000000-0000-0000-0000-0000000000a1' $$,
   'unknown visibility', '23514');
 
@@ -699,14 +669,14 @@ update public.posts set removed_at = now() where id = '60000000-0000-0000-0000-0
 select t.ok((select updated_at from public.posts where id = '60000000-0000-0000-0000-0000000000a1') < '2021-01-01',
   'a takedown does not touch updated_at');
 
-update public.posts set body = body, plain_text = plain_text, source = source, anchors = anchors, visibility = visibility
+update public.posts set body = body, plain_text = plain_text, source = source, visibility = visibility
   where id = '60000000-0000-0000-0000-0000000000a1';
 select t.ok((select updated_at from public.posts where id = '60000000-0000-0000-0000-0000000000a1') < '2021-01-01',
   'saving without changing anything does not touch updated_at');
 
-update public.posts set anchors = '[{"t":5}]' where id = '60000000-0000-0000-0000-0000000000a1';
+update public.posts set plain_text = 'edited text' where id = '60000000-0000-0000-0000-0000000000a1';
 select t.ok((select updated_at from public.posts where id = '60000000-0000-0000-0000-0000000000a1') > '2021-01-01',
-  'changing the positions bumps updated_at');
+  'changing the text bumps updated_at');
 
 alter table public.posts disable trigger posts_touch;
 update public.posts set updated_at = '2020-01-01' where id = '60000000-0000-0000-0000-0000000000a1';
