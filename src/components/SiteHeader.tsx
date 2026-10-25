@@ -31,9 +31,13 @@ export function HeaderView({ user }: { user: HeaderUser | null | "loading" }) {
         </form>
 
         <nav className="ml-auto flex items-center gap-1.5 text-sm">
-          <Link href="/search" className="btn btn-quiet btn-sm sm:hidden" aria-label="搜索">
-            <SearchIcon className="size-4" />
-          </Link>
+          {/* Phones only (the search box is hidden there). The wrapper carries `sm:hidden`: `.btn` sets
+              its own display, which would win over a utility on the link itself. */}
+          <span className="sm:hidden">
+            <Link href="/search" className="btn btn-quiet btn-sm" aria-label="搜索">
+              <SearchIcon className="size-4" />
+            </Link>
+          </span>
           <Link href="/tags" className="btn btn-quiet btn-sm">
             标签
           </Link>

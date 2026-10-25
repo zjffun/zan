@@ -42,15 +42,16 @@ export function Menu({
         {label}
         <ChevronDownIcon className="size-3.5 opacity-70" />
       </button>
-      {open ? (
-        <div
-          role="menu"
-          onClick={() => setOpen(false)}
-          className="absolute right-0 top-full z-30 mt-1.5 min-w-44 overflow-hidden rounded-xl border border-line bg-surface p-1 shadow-lg"
-        >
-          {children}
-        </div>
-      ) : null}
+      {/* Hidden, not unmounted: closing on a click must not remove a submit button from its form
+          before the browser has submitted it (the sign-out button lives in here). */}
+      <div
+        role="menu"
+        hidden={!open}
+        onClick={() => setOpen(false)}
+        className="absolute right-0 top-full z-30 mt-1.5 min-w-44 overflow-hidden rounded-xl border border-line bg-surface p-1 shadow-lg"
+      >
+        {children}
+      </div>
     </div>
   );
 }
