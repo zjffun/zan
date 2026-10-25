@@ -1,7 +1,7 @@
 import "server-only";
 import { isAllowedImageUrl } from "../links/hosts";
 import { fetchJson } from "../server/http";
-import { TtlCache } from "../server/cache";
+import { SharedCache } from "../server/cache";
 import type { TagKind } from "../types";
 import type { WorkCandidate, WorkRecord } from "./types";
 
@@ -60,7 +60,7 @@ function toRecord(subject: BangumiSubject): WorkRecord | null {
   };
 }
 
-const searchCache = new TtlCache<WorkCandidate[]>(10 * 60_000);
+const searchCache = new SharedCache<WorkCandidate[]>("bangumi-search", 10 * 60_000);
 
 /** Searches anime, books/manga, games, live action (and music, as "other"). */
 export async function searchBangumi(keyword: string, limit = 10): Promise<WorkCandidate[]> {

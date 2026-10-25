@@ -96,6 +96,7 @@ scripts/dev/local-stack.sh                # 建库、跑迁移，并打印要写
 | `REPORT_EMAIL` | “举报”发往的邮箱 |
 | `BANGUMI_ACCESS_TOKEN`、`ZAN_USER_AGENT` | Bangumi 要求带 User-Agent，也提供 Access Token |
 | `YOUTUBE_API_KEY` | 可选：补上视频时长和“是否允许外嵌”（有每日配额） |
+| `UPSTASH_REDIS_REST_URL`、`UPSTASH_REDIS_REST_TOKEN` | 可选：限流计数和“对外部网站的查询缓存”放进 Upstash Redis，让所有服务器实例共享（见下文“限流与查询缓存”）。在 Vercel 市场里加 Upstash Redis 集成会自动设置；旧的 `KV_REST_API_URL` / `KV_REST_API_TOKEN` 名字也认 |
 | `CRON_SECRET` | `/api/cron/check-sources` 的 Bearer 密钥（Vercel Cron 会自动带上） |
 | `ADMIN_SECRET` | `/api/admin/takedown` 的 Bearer 密钥 |
 
@@ -137,6 +138,13 @@ npm run lint && npm run typecheck && npm run build
 - `b23.tv` 短链在服务端手动跟随跳转，**每一跳**都检查目标域名在白名单里（SSRF 防护）；分享图抓取缩略图时同样只允许已知图床
 - CSP 的 `frame-src` 只放行 `www.youtube-nocookie.com` 和 `player.bilibili.com`（见 [`next.config.ts`](next.config.ts)）；每个播放器下面都有“在原站打开”兜底链接
 
+**限流与查询缓存**
+
+- 限流（[`ratelimit.ts`](src/lib/server/ratelimit.ts)）：发布、编辑、评论、点赞、贴链接解析、搜作品、建标签、关注、登录这些动作都按用户（登录按 IP）限次数，固定窗口。配了 Redis 就用 `@upstash/ratelimit`，所有实例共享计数；没配，或者 Redis 慢 / 挂了，就退回本实例内存里计数，宁可限得松，也不把人锁在外面
+- 查询缓存（[`cache.ts`](src/lib/server/cache.ts) 的 `SharedCache`）：YouTube / B 站的视频信息缓存 1 小时，Bangumi / Open Library 的搜索缓存 10 分钟。先看本实例内存，再看 Redis，都没有才去问对方；有了 Redis，每条答案对整个站点大约每个有效期只问一次对方。拿不到可信答案的结果（被限流、反爬页面）不缓存
+- Redis 出问题时：每次调用最多等 1.2 秒；一旦失败，这个实例 30 秒内不再碰 Redis，直接用内存，只有第一个请求要付出超时的代价，之后自动重试
+- 它们和下面 Next 的 `'use cache'` 是两回事：`'use cache'` 缓存的是信息流这类自己数据库的查询，默认也是每个实例各自一份；想让它跨实例共享并让 `updateTag` 对所有实例生效，可以以后改用 `'use cache: remote'`
+
 **缓存**
 
 公开信息流、标签页的内容列表和热门标签使用 `'use cache'`，发布 / 编辑 / 删除内容、改昵称时用 `updateTag("feed")` 立即失效；点赞数和评论数在卡片上最多滞后一两分钟。和“谁在看”有关的部分（顶栏、点赞状态、关注状态、私人内容）每次请求都现查，放在 `<Suspense>` 里流式返回，页面外壳是静态的。
@@ -145,7 +153,7 @@ npm run lint && npm run typecheck && npm run build
 
 - **Vercel**：导入仓库，设置上面的环境变量即可；[`vercel.json`](vercel.json) 里配置了每天一次的失效检测。注意 Vercel 免费档只允许非商业用途
 - **Supabase** 免费项目长时间不活跃会被暂停；有稳定用户后再升级
-- 内存里的缓存和限流（`src/lib/server/`）是单实例的，多实例部署时换成 Redis / KV 即可
+- 限流和对外部网站的查询缓存：无服务器环境下建议配 Upstash Redis（环境变量见上），不配也能跑，但各实例各算各的，限额形同虚设，B 站更容易把我们拦掉
 - **登录 cookie**：HttpOnly（页面脚本读不到，浏览器里本来也没有 Supabase 客户端用它），SameSite=Lax，保存 30 天，每次令牌刷新（活跃时最多每小时一次）都会重新写成再 30 天，所以是“连续 30 天不来才掉线”，不是每 30 天登录一次；生产环境（`NODE_ENV=production`）一律加 Secure，所以必须走 https：用 `next start` 在非 localhost 的 http 地址上访问会存不住登录；开发环境（`npm run dev`）跟着请求走，http 的 localhost / 局域网不加 Secure（Safari 和非 localhost 地址会拒收 Secure cookie），经代理的 https 请求看 `x-forwarded-proto`。访问令牌 1 小时过期，刷新令牌默认不过期，想限制“多久不用就掉线”可以在 Supabase 后台设置会话超时
 
 ### 运维
@@ -160,7 +168,7 @@ npm run lint && npm run typecheck && npm run build
 - B 站接口是非官方的，随时可能变化
 - 标签没有审核，也不能改名、合并或删除（只能由运营者在数据库里处理）；任何登录用户都可以新建标签
 - 评论只有一层回复，不能编辑；没有举报评论的入口，也没有通知
-- 每个用户的内容 / 标签 / 评论数量没有配额，只有每个用户的发布频率限制（单实例内存里）
+- 每个用户的内容 / 标签 / 评论数量没有配额，只有每个用户的操作频率限制（配了 Redis 才跨实例生效，见“限流与查询缓存”）
 
 ## 许可
 

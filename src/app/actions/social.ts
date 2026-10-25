@@ -14,7 +14,7 @@ async function setMark(table: Table, postId: string, on: boolean): Promise<Actio
   if (!isUuid(postId) || typeof on !== "boolean") return fail("参数无效。");
   const user = await getCurrentUser();
   if (!user) return fail("请先登录。");
-  const limited = rateLimit(`mark:${user.id}`, 120, 60_000);
+  const limited = await rateLimit(`mark:${user.id}`, 120, 60_000);
   if (!limited.ok) return fail(`操作太频繁，请 ${limited.retryAfter} 秒后再试。`);
 
   const supabase = await createClient();

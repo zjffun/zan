@@ -3,7 +3,7 @@ import { isAllowedImageUrl, REDIRECT_ALLOWED_HOSTS } from "./hosts";
 import { parseLink, type ParsedLink } from "./parse";
 import { parseSourceInput, type SourceInput } from "../sources";
 import { BROWSER_USER_AGENT, fetchJson, followAllowedRedirects } from "../server/http";
-import { TtlCache } from "../server/cache";
+import { SharedCache } from "../server/cache";
 import type { SourceMeta } from "../types";
 
 export interface ResolvedLink {
@@ -96,7 +96,7 @@ async function lookupYouTube(videoId: string): Promise<YouTubeLookup> {
   }
 }
 
-const youtubeCache = new TtlCache<YouTubeLookup>(60 * 60_000);
+const youtubeCache = new SharedCache<YouTubeLookup>("youtube", 60 * 60_000);
 
 async function resolveYouTube(link: Extract<ParsedLink, { provider: "youtube" }>): Promise<ResolveResult> {
   const lookup = await youtubeCache.memo(link.videoId, () => lookupYouTube(link.videoId), (l) => l.state !== "unknown");
@@ -206,7 +206,7 @@ async function lookupBilibili(bvid: string): Promise<BilibiliLookup> {
   }
 }
 
-const bilibiliCache = new TtlCache<BilibiliLookup>(60 * 60_000);
+const bilibiliCache = new SharedCache<BilibiliLookup>("bilibili", 60 * 60_000);
 
 async function resolveBilibili(link: Extract<ParsedLink, { provider: "bilibili" }>): Promise<ResolveResult> {
   const lookup = await bilibiliCache.memo(link.bvid, () => lookupBilibili(link.bvid), (l) => l.state !== "unknown");

@@ -30,7 +30,7 @@ export async function authenticate(_prev: AuthState, formData: FormData): Promis
   const next = safeNextPath(formData.get("next"));
   const email = String(formData.get("email") ?? "").trim();
 
-  const limited = rateLimit(`auth:${await clientKey()}`, 20, 10 * 60_000);
+  const limited = await rateLimit(`auth:${await clientKey()}`, 20, 10 * 60_000);
   if (!limited.ok) return { error: `尝试次数太多，请 ${limited.retryAfter} 秒后再试。` };
 
   const supabase = await createClient();

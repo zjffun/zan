@@ -28,7 +28,7 @@ export async function addComment(input: {
   if (!body) return fail("评论要 1–1000 个字。");
   const user = await getCurrentUser();
   if (!user) return fail("请先登录。");
-  const limited = rateLimit(`comment:${user.id}`, 20, 10 * 60_000);
+  const limited = await rateLimit(`comment:${user.id}`, 20, 10 * 60_000);
   if (!limited.ok) return fail(`评论太频繁，请 ${limited.retryAfter} 秒后再试。`);
 
   const supabase = await createClient();

@@ -1,4 +1,5 @@
 import "server-only";
+import { getRedis, reportRedisError, withTimeout } from "./redis";
 
 /**
  * Tiny in-memory TTL cache. Per server instance only: good enough to absorb
@@ -38,6 +39,61 @@ export class TtlCache<V> {
     if (hit !== undefined) return hit;
     const value = await compute();
     if (shouldCache(value)) this.set(key, value);
+    return value;
+  }
+}
+
+/**
+ * A cache for answers from other sites (YouTube, Bilibili, Bangumi, Open Library): two layers.
+ * This instance's memory answers first; behind it, when Redis is configured, one shared copy
+ * serves every instance, so each answer is fetched upstream about once per TTL no matter how many
+ * serverless instances there are. That matters most for Bilibili, which blocks callers that ask
+ * too often. Without Redis it is just the in-memory cache. A Redis that is slow or down is
+ * skipped, never waited for: the answer is simply fetched again.
+ *
+ * Values must survive JSON (they are stored as JSON in Redis).
+ */
+export class SharedCache<V> {
+  private readonly local: TtlCache<V>;
+
+  constructor(
+    private readonly namespace: string,
+    private readonly ttlMs: number,
+    maxEntries = 500,
+  ) {
+    this.local = new TtlCache<V>(ttlMs, maxEntries);
+  }
+
+  /** Returns the cached value, or computes and caches it. Values for which `shouldCache` is false are not kept. */
+  async memo(key: string, compute: () => Promise<V>, shouldCache: (v: V) => boolean = () => true): Promise<V> {
+    const hit = this.local.get(key);
+    if (hit !== undefined) return hit;
+
+    const redis = getRedis();
+    const redisKey = `zan:cache:${this.namespace}:${key}`;
+    if (redis) {
+      try {
+        const shared = await withTimeout(redis.get<V>(redisKey));
+        if (shared !== null && shared !== undefined) {
+          this.local.set(key, shared);
+          return shared;
+        }
+      } catch (error) {
+        reportRedisError(error);
+      }
+    }
+
+    const value = await compute();
+    if (shouldCache(value)) {
+      this.local.set(key, value);
+      if (redis) {
+        try {
+          await withTimeout(redis.set(redisKey, value, { px: this.ttlMs }));
+        } catch (error) {
+          reportRedisError(error);
+        }
+      }
+    }
     return value;
   }
 }

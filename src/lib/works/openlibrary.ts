@@ -1,6 +1,6 @@
 import "server-only";
 import { fetchJson } from "../server/http";
-import { TtlCache } from "../server/cache";
+import { SharedCache } from "../server/cache";
 import type { WorkCandidate, WorkRecord } from "./types";
 
 const API = "https://openlibrary.org";
@@ -21,7 +21,7 @@ const workId = (key: unknown): string | null => {
   return match ? match[1] : null;
 };
 
-const cache = new TtlCache<WorkCandidate[]>(10 * 60_000);
+const cache = new SharedCache<WorkCandidate[]>("openlibrary-search", 10 * 60_000);
 
 /** Title search, or an exact lookup when the query is an ISBN. */
 export async function searchOpenLibrary(query: string, limit = 10): Promise<WorkCandidate[]> {

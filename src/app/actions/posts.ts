@@ -41,7 +41,7 @@ export async function createPost(input: unknown): Promise<ActionResult<{ id: str
   if (!prepared.ok) return prepared;
   const user = await getCurrentUser();
   if (!user) return fail("请先登录。");
-  const limited = rateLimit(`post:${user.id}`, 20, 10 * 60_000);
+  const limited = await rateLimit(`post:${user.id}`, 20, 10 * 60_000);
   if (!limited.ok) return fail(`发布太频繁，请 ${limited.retryAfter} 秒后再试。`);
 
   const supabase = await createClient();
@@ -71,7 +71,7 @@ export async function updatePost(postId: string, input: unknown): Promise<Action
   if (!prepared.ok) return prepared;
   const user = await getCurrentUser();
   if (!user) return fail("请先登录。");
-  const limited = rateLimit(`post:${user.id}`, 60, 10 * 60_000);
+  const limited = await rateLimit(`post:${user.id}`, 60, 10 * 60_000);
   if (!limited.ok) return fail(`保存太频繁，请 ${limited.retryAfter} 秒后再试。`);
 
   const supabase = await createClient();

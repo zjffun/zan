@@ -20,7 +20,7 @@ export async function searchTags(q: string): Promise<ActionResult<{ tags: TagLis
   const user = await getCurrentUser();
   if (!user) return fail("请先登录。");
   if (typeof q !== "string") return fail("参数无效。");
-  const limited = rateLimit(`tagsearch:${user.id}`, 120, 60_000);
+  const limited = await rateLimit(`tagsearch:${user.id}`, 120, 60_000);
   if (!limited.ok) return fail(`搜索太频繁，请 ${limited.retryAfter} 秒后再试。`);
   const { items } = await listTags({ q: q.trim().replace(/^[#＃]+/, "").slice(0, 60), sort: "hot" }, 8);
   return { ok: true, tags: items };
@@ -44,7 +44,7 @@ export async function createTag(input: {
   if (!name) return fail(`标签名要 1–${MAX_TAG_NAME_LENGTH} 个字，不能包含 #。`);
   const user = await getCurrentUser();
   if (!user) return fail("请先登录。");
-  const limited = rateLimit(`tag:${user.id}`, 20, 10 * 60_000);
+  const limited = await rateLimit(`tag:${user.id}`, 20, 10 * 60_000);
   if (!limited.ok) return fail(`创建太频繁，请 ${limited.retryAfter} 秒后再试。`);
 
   const supabase = await createClient();
@@ -59,7 +59,7 @@ export async function searchWorks(rawQuery: string): Promise<ActionResult<{ cand
   const query = String(rawQuery ?? "").trim().slice(0, 100);
   if (query.length < 1) return { ok: true, candidates: [] };
 
-  const limited = rateLimit(`search:${user.id}`, 30, 60_000);
+  const limited = await rateLimit(`search:${user.id}`, 30, 60_000);
   if (!limited.ok) return fail(`搜索太频繁，请 ${limited.retryAfter} 秒后再试。`);
 
   // One source being down must not break the other.
@@ -89,7 +89,7 @@ export async function createTagFromWork(input: unknown): Promise<ActionResult<{ 
   if (!parsed.success) return fail(zodMessage(parsed.error));
   const user = await getCurrentUser();
   if (!user) return fail("请先登录。");
-  const limited = rateLimit(`tag:${user.id}`, 20, 10 * 60_000);
+  const limited = await rateLimit(`tag:${user.id}`, 20, 10 * 60_000);
   if (!limited.ok) return fail(`创建太频繁，请 ${limited.retryAfter} 秒后再试。`);
 
   // The title and cover come from the upstream API, never from the client.
@@ -122,7 +122,7 @@ export async function setFollow(tagId: string, on: boolean): Promise<ActionResul
   if (!isUuid(tagId) || typeof on !== "boolean") return fail("参数无效。");
   const user = await getCurrentUser();
   if (!user) return fail("请先登录。");
-  const limited = rateLimit(`follow:${user.id}`, 60, 60_000);
+  const limited = await rateLimit(`follow:${user.id}`, 60, 60_000);
   if (!limited.ok) return fail(`操作太频繁，请 ${limited.retryAfter} 秒后再试。`);
 
   const supabase = await createClient();
