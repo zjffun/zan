@@ -679,6 +679,43 @@ select t.ok((select updated_at from public.posts where id = '60000000-0000-0000-
   'changing the visibility bumps updated_at');
 rollback;
 
+-- the daily source check, a takedown and a save without changes are not edits (migration 0008)
+begin;
+alter table public.posts disable trigger posts_touch;
+update public.posts set updated_at = '2020-01-01' where id = '60000000-0000-0000-0000-0000000000a1';
+alter table public.posts enable trigger posts_touch;
+
+update public.posts set source_status = 'dead', source_fail_count = 2, source_checked_at = now()
+  where id = '60000000-0000-0000-0000-0000000000a1';
+select t.ok((select source_status from public.posts where id = '60000000-0000-0000-0000-0000000000a1') = 'dead', 'the check wrote its result');
+select t.ok((select updated_at from public.posts where id = '60000000-0000-0000-0000-0000000000a1') < '2021-01-01',
+  'the source check does not touch updated_at');
+
+update public.posts set source_checked_at = now() where id = '60000000-0000-0000-0000-0000000000a1';
+select t.ok((select updated_at from public.posts where id = '60000000-0000-0000-0000-0000000000a1') < '2021-01-01',
+  'a check with no verdict (only the clock moves) does not touch updated_at');
+
+update public.posts set removed_at = now() where id = '60000000-0000-0000-0000-0000000000a1';
+select t.ok((select updated_at from public.posts where id = '60000000-0000-0000-0000-0000000000a1') < '2021-01-01',
+  'a takedown does not touch updated_at');
+
+update public.posts set body = body, plain_text = plain_text, source = source, anchors = anchors, visibility = visibility
+  where id = '60000000-0000-0000-0000-0000000000a1';
+select t.ok((select updated_at from public.posts where id = '60000000-0000-0000-0000-0000000000a1') < '2021-01-01',
+  'saving without changing anything does not touch updated_at');
+
+update public.posts set anchors = '[{"t":5}]' where id = '60000000-0000-0000-0000-0000000000a1';
+select t.ok((select updated_at from public.posts where id = '60000000-0000-0000-0000-0000000000a1') > '2021-01-01',
+  'changing the positions bumps updated_at');
+
+alter table public.posts disable trigger posts_touch;
+update public.posts set updated_at = '2020-01-01' where id = '60000000-0000-0000-0000-0000000000a1';
+alter table public.posts enable trigger posts_touch;
+update public.posts set source = '{"provider":"link","ref":{"url":"https://example.com/other"}}' where id = '60000000-0000-0000-0000-0000000000a1';
+select t.ok((select updated_at from public.posts where id = '60000000-0000-0000-0000-0000000000a1') > '2021-01-01',
+  'pointing the post at something else bumps updated_at');
+rollback;
+
 -- ---------------------------------------------------------------------------
 -- post_tags
 -- ---------------------------------------------------------------------------

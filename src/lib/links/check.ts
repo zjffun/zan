@@ -67,3 +67,19 @@ export function nextHealthState(current: HealthState, health: SourceHealth): Hea
   const fail_count = Math.min(current.fail_count + 1, 100);
   return { status: fail_count >= DEAD_AFTER ? "dead" : current.status, fail_count };
 }
+
+/**
+ * What to write to a post after checking its source. The check time always moves: the checker takes
+ * the least recently checked posts first, so a post that got no verdict (Bilibili rate limiting us)
+ * and kept its old time would stay at the front and, 30 of them in a row, crowd out everything behind it.
+ * The status and the counter are only written when there is a verdict.
+ */
+export function healthUpdate(
+  current: HealthState,
+  health: SourceHealth,
+  now: Date,
+): { source_checked_at: string; source_status?: "ok" | "dead"; source_fail_count?: number } {
+  const next = nextHealthState(current, health);
+  const source_checked_at = now.toISOString();
+  return next ? { source_status: next.status, source_fail_count: next.fail_count, source_checked_at } : { source_checked_at };
+}

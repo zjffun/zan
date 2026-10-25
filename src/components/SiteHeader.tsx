@@ -52,6 +52,7 @@ export function HeaderView({ user }: { user: HeaderUser | null | "loading" }) {
 
               {user ? (
                 <Menu
+                  ariaLabel={`${user.nickname} 的账号菜单`}
                   buttonClassName="btn btn-quiet btn-sm !px-1.5"
                   label={
                     <>

@@ -15,10 +15,10 @@ import { getCurrentUser, isUuid } from "@/lib/dal";
 import { firstChipTime } from "@/lib/doc/chips";
 import { renderDocHtml } from "@/lib/doc/render";
 import { sanitizeDocOrEmpty } from "@/lib/doc/schema";
-import { canSeek } from "@/lib/sources";
 import { excerptOf } from "@/lib/feed";
 import { getComments, getPost, getPublicPost, getViewerState } from "@/lib/posts";
-import { sourceTitle } from "@/lib/sources";
+import { canSeek, PROVIDER_LABEL, sourceTitle } from "@/lib/sources";
+import { formatTimestamp } from "@/lib/time";
 
 const dateFormat = new Intl.DateTimeFormat("zh-CN", { dateStyle: "long", timeStyle: "short", timeZone: "Asia/Shanghai" });
 
@@ -39,6 +39,29 @@ export async function generateMetadata({ params }: PageProps<"/p/[id]">): Promis
   };
 }
 
+/**
+ * The post's title: the video's or page's own title, which is the first thing to know about a post that
+ * is a video. Where the player (or the placeholder that stands in for it) already says it, or there is
+ * no title, it is still there for screen readers and for the page outline.
+ */
+function PostHeading({ post }: { post: NonNullable<Awaited<ReturnType<typeof getPost>>> }) {
+  const source = post.source;
+  if (!source) return <h1 className="sr-only">{excerptOf(post.plain_text, 40) || "内容"}</h1>;
+
+  const title = sourceTitle(source);
+  // a player carries no title of its own; the placeholders (dead video, link, failed embed) do
+  const shown = Boolean(source.meta?.title) && canSeek(source, post.source_status);
+  if (!shown) return <h1 className="sr-only">{title}</h1>;
+
+  const details = [PROVIDER_LABEL[source.provider], source.meta?.author, source.meta?.duration ? formatTimestamp(source.meta.duration) : null].filter(Boolean);
+  return (
+    <div className="mt-5">
+      <h1 className="text-xl font-semibold leading-snug">{title}</h1>
+      <p className="mt-1 text-xs text-muted">{details.join(" · ")}</p>
+    </div>
+  );
+}
+
 async function PostPage({ params }: Pick<PageProps<"/p/[id]">, "params">) {
   const { id } = await params;
   if (!isUuid(id)) notFound();
@@ -52,7 +75,8 @@ async function PostPage({ params }: Pick<PageProps<"/p/[id]">, "params">) {
   return (
     <article>
       <header className="flex items-center gap-3">
-        <Link href={`/u/${post.author.id}`}>
+        {/* the same link as the name beside it: only for the eye, not for screen readers or the Tab key */}
+        <Link href={`/u/${post.author.id}`} aria-hidden="true" tabIndex={-1}>
           <Avatar id={post.author.id} name={post.author.nickname} />
         </Link>
         <div className="min-w-0 flex-1">
@@ -74,6 +98,8 @@ async function PostPage({ params }: Pick<PageProps<"/p/[id]">, "params">) {
         ) : null}
         {isAuthor ? <PostMenu postId={post.id} /> : null}
       </header>
+
+      <PostHeading post={post} />
 
       <div className="mt-5">
         <PostBody

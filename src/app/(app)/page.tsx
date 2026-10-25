@@ -20,9 +20,6 @@ function ComposeBar() {
         </span>
         <span className="truncate text-sm">写点什么，或贴一个视频链接……</span>
       </Link>
-      <Link href="/new/tag" className="btn btn-sm shrink-0">
-        新建标签
-      </Link>
       <Link href="/new/post" className="btn btn-primary btn-sm shrink-0">
         发布
       </Link>

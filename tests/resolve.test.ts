@@ -317,3 +317,42 @@ describe("nextHealthState", () => {
     expect(nextHealthState({ status: "ok", fail_count: 1 }, "unknown")).toBeNull();
   });
 });
+
+describe("healthUpdate", () => {
+  const now = new Date("2026-10-25T03:00:00.000Z");
+
+  it("always moves the check time, so that a post nobody could judge goes to the back of the queue", async () => {
+    const { healthUpdate } = await import("@/lib/links/check");
+    expect(healthUpdate({ status: "ok", fail_count: 1 }, "unknown", now)).toEqual({ source_checked_at: "2026-10-25T03:00:00.000Z" });
+  });
+
+  it("writes the verdict together with the time when there is one", async () => {
+    const { healthUpdate } = await import("@/lib/links/check");
+    expect(healthUpdate({ status: "ok", fail_count: 0 }, "ok", now)).toEqual({
+      source_status: "ok",
+      source_fail_count: 0,
+      source_checked_at: "2026-10-25T03:00:00.000Z",
+    });
+    expect(healthUpdate({ status: "ok", fail_count: 1 }, "dead", now)).toEqual({
+      source_status: "dead",
+      source_fail_count: 2,
+      source_checked_at: "2026-10-25T03:00:00.000Z",
+    });
+  });
+
+  it("keeps the queue moving: 30 posts with no verdict do not stay in front for ever", async () => {
+    const { healthUpdate } = await import("@/lib/links/check");
+    // the checker takes the oldest check time first (a missing one counts as oldest)
+    type Post = { id: number; checked: string | null };
+    const posts: Post[] = Array.from({ length: 40 }, (_, id) => ({ id, checked: null }));
+    const seen = new Set<number>();
+    for (let run = 0; run < 3; run++) {
+      const batch = [...posts].sort((a, b) => (a.checked ?? "").localeCompare(b.checked ?? "") || a.id - b.id).slice(0, 30);
+      for (const post of batch) {
+        seen.add(post.id);
+        post.checked = healthUpdate({ status: "ok", fail_count: 0 }, "unknown", new Date(2026, 9, 25, 3, run, post.id)).source_checked_at;
+      }
+    }
+    expect(seen.size).toBe(40); // every post was looked at, though none ever got a verdict
+  });
+});

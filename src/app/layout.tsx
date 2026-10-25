@@ -5,7 +5,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrlFallback()),
   title: { default: "zan", template: "%s · zan" },
-  description: "攒下每一部作品的视频时间点、书的页码和你自己的笔记。只存引用，不存内容；默认私人，一键发布。",
+  description: "zan（攒）：边看边记，把视频里的时间点和读书时的想法，按标签攒在一起。只存引用，不存内容。",
 };
 
 export const viewport: Viewport = {

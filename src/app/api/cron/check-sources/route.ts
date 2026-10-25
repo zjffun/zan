@@ -1,7 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { revalidateTag } from "next/cache";
 import { NextResponse, type NextRequest } from "next/server";
-import { checkVideoHealth, nextHealthState } from "@/lib/links/check";
+import { checkVideoHealth, healthUpdate } from "@/lib/links/check";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 /** Sources checked per run. Keep it small enough to finish inside the function time limit. */
@@ -44,13 +44,10 @@ export async function GET(request: NextRequest) {
       const health = await checkVideoHealth(source?.provider ?? "", source?.ref ?? {});
       summary.checked += 1;
       summary[health] += 1;
-      const next = nextHealthState({ status: row.source_status, fail_count: row.source_fail_count }, health);
-      if (!next) continue; // no trustworthy answer: leave it for the next run
-      await admin
-        .from("posts")
-        .update({ source_status: next.status, source_fail_count: next.fail_count, source_checked_at: new Date().toISOString() })
-        .eq("id", row.id);
-      if (next.status !== row.source_status) {
+      // no trustworthy answer ("unknown"): the status stays, but the post goes to the back of the queue
+      const update = healthUpdate({ status: row.source_status, fail_count: row.source_fail_count }, health, new Date());
+      await admin.from("posts").update(update).eq("id", row.id);
+      if (update.source_status !== undefined && update.source_status !== row.source_status) {
         summary.changed += 1;
         // the post page and the cards show a "video unavailable" notice now (or no longer)
         revalidateTag(`post:${row.id}`, { expire: 0 });

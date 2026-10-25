@@ -5,6 +5,7 @@ import { fail, type ActionResult } from "@/lib/action";
 import { getCurrentUser, isUuid } from "@/lib/dal";
 import { preparePost, type PreparedPost } from "@/lib/post-input";
 import { rateLimit } from "@/lib/server/ratelimit";
+import { chargeNewTags } from "@/lib/server/tag-allowance";
 import { createOrFindTag } from "@/lib/server/tag-store";
 import { createClient } from "@/lib/supabase/server";
 
@@ -13,9 +14,14 @@ type Supabase = Awaited<ReturnType<typeof createClient>>;
 const POSTGRES_FK_VIOLATION = "23503";
 const POSTGRES_CHECK_VIOLATION = "23514";
 
-/** Existing tags plus the ones typed in: the final set of tag ids, or an error. */
-async function resolveTagIds(supabase: Supabase, prepared: PreparedPost): Promise<{ ids: string[] } | { error: string }> {
+/**
+ * Existing tags plus the ones typed in: the final set of tag ids, or an error. A tag typed in is a tag
+ * made, so it is charged to the same allowance as the tag form (before anything is created).
+ */
+async function resolveTagIds(supabase: Supabase, prepared: PreparedPost, userId: string): Promise<{ ids: string[] } | { error: string }> {
   const ids = new Set(prepared.tagIds);
+  const charged = await chargeNewTags(userId, prepared.newTagNames.length);
+  if (!charged.ok) return { error: `新建标签太频繁，请 ${charged.retryAfter} 秒后再试。` };
   for (const name of prepared.newTagNames) {
     const result = await createOrFindTag(supabase, { name });
     if ("error" in result) return result;
@@ -46,7 +52,7 @@ export async function createPost(input: unknown): Promise<ActionResult<{ id: str
   if (!limited.ok) return fail(`发布太频繁，请 ${limited.retryAfter} 秒后再试。`);
 
   const supabase = await createClient();
-  const tags = await resolveTagIds(supabase, prepared.value);
+  const tags = await resolveTagIds(supabase, prepared.value, user.id);
   if ("error" in tags) return fail(tags.error);
 
   const inserted = await supabase.from("posts").insert(columns(prepared.value)).select("id").single();
@@ -76,7 +82,12 @@ export async function updatePost(postId: string, input: unknown): Promise<Action
   if (!limited.ok) return fail(`保存太频繁，请 ${limited.retryAfter} 秒后再试。`);
 
   const supabase = await createClient();
-  const tags = await resolveTagIds(supabase, prepared.value);
+  // whose post is it? Before anything is made for it: a made-up id must not leave tags behind
+  const owned = await supabase.from("posts").select("id").eq("id", postId).eq("author", user.id).maybeSingle();
+  if (owned.error) return fail("保存失败。");
+  if (!owned.data) return fail("找不到这条内容。");
+
+  const tags = await resolveTagIds(supabase, prepared.value, user.id);
   if ("error" in tags) return fail(tags.error);
 
   const updated = await supabase.from("posts").update(columns(prepared.value)).eq("id", postId).select("id").maybeSingle();

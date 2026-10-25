@@ -44,7 +44,8 @@ export function Comments({
     const canDelete = viewerId !== null && (viewerId === comment.author.id || viewerId === postAuthorId);
     return (
       <li key={comment.id} className="flex gap-2.5">
-        <Link href={`/u/${comment.author.id}`} className="shrink-0">
+        {/* the same link as the name beside it: only for the eye, not for screen readers or the Tab key */}
+        <Link href={`/u/${comment.author.id}`} className="shrink-0" aria-hidden="true" tabIndex={-1}>
           <Avatar id={comment.author.id} name={comment.author.nickname} size="sm" />
         </Link>
         <div className="min-w-0 flex-1">

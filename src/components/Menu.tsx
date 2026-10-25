@@ -10,10 +10,13 @@ import { ChevronDownIcon } from "./icons";
  */
 export function Menu({
   label,
+  ariaLabel,
   buttonClassName = "btn btn-quiet btn-sm",
   children,
 }: {
   label: ReactNode;
+  /** a name for the button when its content is only a picture, or its text is hidden on small screens */
+  ariaLabel?: string;
   buttonClassName?: string;
   children: ReactNode;
 }) {
@@ -38,7 +41,14 @@ export function Menu({
 
   return (
     <div ref={root} className="relative">
-      <button type="button" className={buttonClassName} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
+      <button
+        type="button"
+        className={buttonClassName}
+        aria-label={ariaLabel}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+      >
         {label}
         <ChevronDownIcon className="size-3.5 opacity-70" />
       </button>

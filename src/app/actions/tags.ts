@@ -4,6 +4,7 @@ import { z } from "zod";
 import { fail, zodMessage, type ActionResult } from "@/lib/action";
 import { getCurrentUser, isUuid } from "@/lib/dal";
 import { rateLimit } from "@/lib/server/ratelimit";
+import { chargeNewTags } from "@/lib/server/tag-allowance";
 import { createOrFindTag } from "@/lib/server/tag-store";
 import { createClient } from "@/lib/supabase/server";
 import { MAX_TAG_NAME_LENGTH, normalizeTagName } from "@/lib/tag-name";
@@ -44,7 +45,7 @@ export async function createTag(input: {
   if (!name) return fail(`标签名要 1–${MAX_TAG_NAME_LENGTH} 个字，不能包含 #。`);
   const user = await getCurrentUser();
   if (!user) return fail("请先登录。");
-  const limited = await rateLimit(`tag:${user.id}`, 20, 10 * 60_000);
+  const limited = await chargeNewTags(user.id, 1);
   if (!limited.ok) return fail(`创建太频繁，请 ${limited.retryAfter} 秒后再试。`);
 
   const supabase = await createClient();
@@ -89,7 +90,7 @@ export async function createTagFromWork(input: unknown): Promise<ActionResult<{ 
   if (!parsed.success) return fail(zodMessage(parsed.error));
   const user = await getCurrentUser();
   if (!user) return fail("请先登录。");
-  const limited = await rateLimit(`tag:${user.id}`, 20, 10 * 60_000);
+  const limited = await chargeNewTags(user.id, 1);
   if (!limited.ok) return fail(`创建太频繁，请 ${limited.retryAfter} 秒后再试。`);
 
   // The title and cover come from the upstream API, never from the client.

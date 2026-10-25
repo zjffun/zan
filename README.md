@@ -11,7 +11,7 @@ zan 是“攒”：一个“只存引用，不存内容”的内容社区，看�
 - **首页是信息流**：打开就是大家发布的内容（瀑布流卡片），可以切到“关注”（你关注的标签下的内容），上面有热门标签；顶栏的“新建”和首页顶部的输入条随时可以发布内容，没登录点它们会先去登录，再回到发布页
 - **发布内容和新建标签**
   - **发布内容**：写文字（支持加粗、列表、链接等），可以贴 **YouTube** / **B 站**（含分 P、`?t=`、`b23.tv` 短链）或任意网页链接，视频里的时间直接写在正文里（`@12:34`），想记几处都行，后面接着写自己的话；书的页码就当普通文字写（`p.132`），不是标签；挂 0–5 个标签，选已有的，或现场新建；可见范围是“所有人”或“仅自己可见”（私人草稿）
-  - **新建标签**（入口在发布页的标签框里“新建标签 #xxx”、标签页和首页输入条，顶栏的“新建”只发布内容）：从 **Bangumi**（动画、书、漫画、游戏、真人剧）或 **Open Library**（书，可按 ISBN）搜一部作品，名字、封面和类型自动带上；或者手动建一个话题标签
+  - **新建标签**（入口在发布页的标签框里“新建标签 #xxx”和标签页；顶栏的“新建”和首页顶部的输入条只发布内容）：从 **Bangumi**（动画、书、漫画、游戏、真人剧）或 **Open Library**（书，可按 ISBN）搜一部作品，名字、封面和类型自动带上；或者手动建一个话题标签
 - **图片**：在编辑器里直接 `Cmd/Ctrl + V` 粘贴截图或复制的图片，或把图片文件拖进来，或点工具栏的“图片”选文件；每条内容最多 9 张，不支持外链图片（Markdown 里写 `![](https://…)` 不会变成图片）
 - **时间标签**：编辑器里输入 `@12:34` 加空格，自动变成可点击的标签；粘贴进来的 `@12:34` 当场变成标签，输入法打出的全角冒号（`@4：16`）也认。没经过“输入加空格”的 `@12:34` 文字（比如粘贴、早先保存的内容），保存和显示时同样会被认成标签（代码和链接里的除外）。只有“时间”是标签，页码、章节、集数都是普通文字（`E5@12:34` 不是格式，不会变成标签）；以前存成页码或集数标签的内容，显示和保存时也还原成文字（`p.132`、`E5`，带时间的写成“E5 [1:30]”）。能点的和不能点的外观不同：有播放器的内容里的时间标签是绿色、带 ▶，点一下播放器就跳过去；没有视频（或视频已失效、只是个外链）的内容里的时间标签是灰色纯文字，不能点
 - **换行只有一种**：回车、Shift+回车、粘贴进来的网页里的 `<br>` 都是新段落，间距一样；以前保存的“紧挨着的几行”显示时也按段落分开，空行有一行的高度，和编辑时看到的一样。引用里：在一行引用末尾按回车就结束引用，Shift+回车在引用里另起一段
@@ -173,7 +173,7 @@ npm run lint && npm run typecheck && npm run build
 - **Vercel**：导入仓库，设置上面的环境变量即可；[`vercel.json`](vercel.json) 里配置了每天一次的失效检测。注意 Vercel 免费档只允许非商业用途
 - **从本机用命令行部署**（不需要先把 GitHub 仓库连到 Vercel）：`npx vercel login`，`npx vercel link --project <名字>`，用 `printf %s "$值" | npx vercel env add 名字 -e production --sensitive` 逐个写入环境变量，再 `npx vercel deploy --prod`。[`vercel.json`](vercel.json) 把函数放在东京（`hnd1`），和 Supabase 的东京区域同区；换了数据库区域，这里也要改
 - **`package-lock.json` 里的下载地址必须是公网源**：锁文件里的 `resolved` 如果指向 Vercel 访问不到的地址，`npm install` 会直接失败。用 `npm install --registry=https://registry.npmjs.org/` 重新生成；`npm test` 里的 `tests/package-lock.test.ts` 会检查每一项都来自 `registry.npmjs.org`
-- **上线带图片、多位置功能的版本前**，先在 Supabase 的 SQL 编辑器里按顺序运行 [`0006_post_images.sql`](supabase/migrations/0006_post_images.sql)（建存储桶 `post-images`，可重复运行）和 [`0007_post_positions.sql`](supabase/migrations/0007_post_positions.sql)（只增加列、不删旧列，所以先迁移、后部署，或反过来都不会让现有页面坏掉；不可重复运行）；环境变量不用加。`/media/…` 的改写在构建时读 `SUPABASE_URL`，所以这个变量要在 Vercel 的构建环境里也有。Vercel 函数的请求体上限是 4.5 MB，所以上传限制在 3 MB 以内，靠浏览器先缩小
+- **上线带图片、多位置功能的版本前**，先在 Supabase 的 SQL 编辑器里按顺序运行 [`0006_post_images.sql`](supabase/migrations/0006_post_images.sql)（建存储桶 `post-images`，可重复运行）、[`0007_post_positions.sql`](supabase/migrations/0007_post_positions.sql)（只增加列、不删旧列，所以先迁移、后部署，或反过来都不会让现有页面坏掉；不可重复运行）和 [`0008_edited_means_edited.sql`](supabase/migrations/0008_edited_means_edited.sql)（只有正文、链接、位置、可见范围真的改了，才更新“已编辑”的时间；失效检测、下架、不改内容的保存都不算；可重复运行。之前被失效检测动过的内容会保留那个时间，分不出哪些是真编辑）；环境变量不用加。`/media/…` 的改写在构建时读 `SUPABASE_URL`，所以这个变量要在 Vercel 的构建环境里也有。Vercel 函数的请求体上限是 4.5 MB，所以上传限制在 3 MB 以内，靠浏览器先缩小
 - **Supabase** 免费项目长时间不活跃会被暂停；有稳定用户后再升级。免费档存储 1 GB、单文件最大 50 MB
 - 限流和对外部网站的查询缓存：无服务器环境下建议配 Upstash Redis（环境变量见上），不配也能跑，但各实例各算各的，限额形同虚设，B 站更容易把我们拦掉
 - **登录 cookie**：HttpOnly（页面脚本读不到，浏览器里本来也没有 Supabase 客户端用它），SameSite=Lax，保存 30 天，每次令牌刷新（活跃时最多每小时一次）都会重新写成再 30 天，所以是“连续 30 天不来才掉线”，不是每 30 天登录一次；生产环境（`NODE_ENV=production`）一律加 Secure，所以必须走 https：用 `next start` 在非 localhost 的 http 地址上访问会存不住登录；开发环境（`npm run dev`）跟着请求走，http 的 localhost / 局域网不加 Secure（Safari 和非 localhost 地址会拒收 Secure cookie），经代理的 https 请求看 `x-forwarded-proto`。访问令牌 1 小时过期，刷新令牌默认不过期，想限制“多久不用就掉线”可以在 Supabase 后台设置会话超时
@@ -181,7 +181,7 @@ npm run lint && npm run typecheck && npm run build
 ### 运维
 
 - **下架**：`POST /api/admin/takedown`，`Authorization: Bearer $ADMIN_SECRET`，body `{"post":"<内容 id>"}`。内容对所有人（包括作者）立即隐藏并从缓存中失效，不删数据；传 `"restore": true` 可以恢复。流程和条款模板见 `/terms`（上线前请按所在地区法律修改；运营主体在美国时可登记 DMCA 指定代理人）
-- **失效检测**：`GET /api/cron/check-sources`，每次检查最久没检查过的 30 条带 YouTube / B 站视频的内容。平台没有给出可信答案时（限流、反爬页面）保持原状态；连续两次判定失效（`posts.source_fail_count`）才标记为 `dead`，之后再次检查到正常会自动恢复
+- **失效检测**：`GET /api/cron/check-sources`，每次检查最久没检查过的 30 条带 YouTube / B 站视频的内容。平台没有给出可信答案时（限流、反爬页面）状态不变，但检查时间照样往前走，排到队尾，所以一批查不出结果的内容不会一直占着前 30 条、挤掉后面的；连续两次判定失效（`posts.source_fail_count`）才标记为 `dead`，之后再次检查到正常会自动恢复
 - **中文搜索**：在 Supabase 启用 `pgroonga` 扩展后运行 `0005_pgroonga_posts.sql`；`search_posts` 签名不变，应用无需改动（这份迁移没有在 CI 里测过，需要装了 PGroonga 的库：`WITH_PGROONGA=1 npm run test:db`）
 
 ## 已知限制

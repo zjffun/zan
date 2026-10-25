@@ -179,7 +179,7 @@ function ManualForm({
             onChange={(event) => setName(event.target.value)}
             required
             maxLength={MAX_TAG_NAME_LENGTH + 1}
-            placeholder="例如：孤独摇滚！ / 读书笔记 / 看番日常"
+            placeholder="例如：读书笔记 / 心理学 / 周末随想"
           />
         </label>
         <label className="text-sm font-medium">
