@@ -19,7 +19,7 @@ import { useResetOnHide } from "@/lib/use-reset-on-hide";
 
 const TIME_HINT: Record<string, string> = {
   youtube: "“记录当前时间”会按播放器的当前时间加一个位置，可以接着写描述；写内容时按 Alt+T，会在光标处放一个可点击的时间标签。",
-  bilibili: "B 站播放器读不到当前时间：在下面的“位置”里手动输入 12:34，或贴一个带 ?t= 的链接；写内容时输入 @12:34 加空格，会变成可点击的时间标签。",
+  bilibili: "B 站播放器读不到当前时间：在下面的“位置”里手动输入 12:34，或贴一个带 ?t= 的链接。",
 };
 
 /** Turns a saved post back into what the composer edits. */

@@ -81,6 +81,53 @@ describe("sanitizeDoc", () => {
   });
 });
 
+describe("position labels written as text", () => {
+  const bold = [{ type: "bold" }];
+  const labelOf = (node: DocNode) => (node.type === "anchorChip" ? node.attrs : node.text);
+
+  it("turns @4:16 at the start of a bold paragraph into a label and keeps the rest bold", () => {
+    const out = sanitizeDoc(doc(p(text("@4:16 身份危机（Identity Crisis）", bold), text("，心理学里常译作"))));
+    expect(out).toEqual(
+      doc(p({ type: "anchorChip", attrs: { t: 256 } }, text(" 身份危机（Identity Crisis）", bold), text("，心理学里常译作"))),
+    );
+    expect(docToPlainText(out)).toBe("4:16 身份危机（Identity Crisis），心理学里常译作");
+  });
+
+  it("does the same in headings, with the episode form and the full-width colon", () => {
+    const out = sanitizeDoc(doc({ type: "heading", attrs: { level: 2 }, content: [text("E5@12：34 开场 @1:00")] }));
+    expect(out.content?.[0].content?.map(labelOf)).toEqual([{ ep: 5, t: 754 }, " 开场 ", { t: 60 }]);
+  });
+
+  it("renders them as clickable labels and exports them as links", () => {
+    const body = doc(p(text("@4:16 开始")));
+    expect(renderDocHtml(body)).toContain('<button type="button" class="anchor-chip" data-anchor-chip="" data-t="256" title="跳到 4:16">4:16</button>');
+    expect(docToMarkdown(body, { chipHref: (a) => `https://youtu.be/x?t=${a.t}` })).toBe("[4:16](https://youtu.be/x?t=256) 开始");
+  });
+
+  it("leaves code, links, code blocks and words like name@4:16 alone", () => {
+    const link = [{ type: "link", attrs: { href: "https://example.com" } }];
+    for (const input of [
+      p(text("@4:16", [{ type: "code" }])),
+      p(text("@4:16", link)),
+      { type: "codeBlock", content: [text("@4:16")] },
+      p(text("name@4:16")),
+    ] as DocNode[]) {
+      expect(JSON.stringify(sanitizeDoc(doc(input))), JSON.stringify(input)).not.toContain("anchorChip");
+    }
+  });
+
+  it("is a fixed point: cleaning twice changes nothing", () => {
+    const once = sanitizeDoc(doc(p(text("a @1:00 b E2@3:00 c @9:99"))));
+    expect(sanitizeDoc(once)).toEqual(once);
+  });
+
+  it("counts the labels it makes against the size limit", () => {
+    // each text node is under its own limit, but together they would turn into far more than MAX_NODES labels
+    const many = "@1:00 ".repeat(3166); // 18 996 characters
+    expect(() => sanitizeDoc(doc(p(text(many), text(many), text(many))))).toThrow(DocError);
+  });
+});
+
 describe("images in a document", () => {
   it("keeps an image that points at one of our files, with its size and alt text", () => {
     const input = doc(p(text("看图")), image({ key: KEY, alt: "封面", width: 800, height: 600 }));

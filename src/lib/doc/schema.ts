@@ -1,5 +1,6 @@
 import { MAX_UPLOAD_EDGE, parseImageKey } from "../image";
 import { MAX_SECONDS } from "../time";
+import { splitTimeMarks } from "./time-marks";
 
 /**
  * The note format is TipTap/ProseMirror JSON, but the server never trusts what
@@ -191,11 +192,38 @@ function cleanNode(raw: unknown, parent: string, depth: number, budget: Budget):
       const clean = cleanNode(child, type, depth + 1, budget);
       if (clean) content.push(clean);
     }
-    if (content.length > 0) node.content = content;
+    const children = type === "paragraph" || type === "heading" ? withPositionLabels(content, budget) : content;
+    if (children.length > 0) node.content = children;
   }
 
   if (NEEDS_CONTENT.has(type) && !node.content) return null;
   return node;
+}
+
+/**
+ * "@4:16" and "E5@4:16" in the text of a paragraph or heading become position labels, as if they had
+ * been typed in the editor. Text that is code or a link is left alone.
+ */
+function withPositionLabels(content: DocNode[], budget: Budget): DocNode[] {
+  const out: DocNode[] = [];
+  for (const node of content) {
+    const plain = node.type === "text" && !node.marks?.some((mark) => mark.type === "code" || mark.type === "link");
+    if (!plain || !node.text) {
+      out.push(node);
+      continue;
+    }
+    for (const piece of splitTimeMarks(node.text)) {
+      if ("chip" in piece) {
+        const attrs = cleanChipAttrs(piece.chip);
+        if (!attrs) continue;
+        if (++budget.nodes > MAX_NODES) throw new DocError("document is too large");
+        out.push({ type: "anchorChip", attrs: { ...attrs } });
+      } else {
+        out.push(node.marks ? { type: "text", text: piece.text, marks: node.marks } : { type: "text", text: piece.text });
+      }
+    }
+  }
+  return out;
 }
 
 export const EMPTY_DOC: DocNode = { type: "doc", content: [] };
