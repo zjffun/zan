@@ -1,15 +1,17 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPost, updatePost } from "@/app/actions/posts";
 import { attempt } from "@/lib/attempt";
 import { firstChipTime } from "@/lib/doc/chips";
+import { browserStorage, clearDraft, draftKey, hasContent, readDraft, writeDraft, type Draft } from "@/lib/draft";
 import { EMPTY_DOC, sanitizeDocOrEmpty, type ChipAttrs, type DocNode } from "@/lib/doc/schema";
 import { MAX_POST_TAGS } from "@/lib/post-input";
 import type { PostDetailData, Visibility } from "@/lib/types";
 import { NoteEditor, type NoteEditorHandle } from "./editor/NoteEditor";
 import { LinkAttach, type Attached } from "./LinkAttach";
+import { RelativeTime } from "./RelativeTime";
 import { Select } from "./Select";
 import { SourcePlayer } from "./players/SourcePlayer";
 import type { PlayerHandle } from "./players/types";
@@ -36,23 +38,114 @@ function fromPost(post: PostDetailData): {
   };
 }
 
+/** What a saved draft says about the attached link, as the form holds it. */
+function attachedFromDraft(draft: Draft): Attached | null {
+  if (!draft.source) return null;
+  return { source: { ...draft.source, meta: draft.source.meta ?? null } as Attached["source"], title: draft.title, needsTitle: false, warnings: [] };
+}
+
+interface ComposerProps {
+  post?: PostDetailData;
+  presetTags?: TagPick[];
+}
+
+const alwaysTrue = () => true;
+const never = () => () => undefined;
+
 /**
  * Write a post, or edit one: text (with clickable time labels), an optional
- * video or link, up to five tags, and who can see it.
+ * video or link, up to five tags, and who can see it. What is written is kept in this browser
+ * while it is written, so that closing the tab does not lose it.
  */
-export function PostComposer({ post, presetTags = [] }: { post?: PostDetailData; presetTags?: TagPick[] }) {
+export function PostComposer(props: ComposerProps) {
+  // The server cannot know what is in this browser's storage, so it renders an empty form; once the page is
+  // in the browser the form is swapped (once, before anything has been typed) for one that starts from the draft.
+  const inBrowser = useSyncExternalStore(never, alwaysTrue, () => false);
+  return inBrowser ? <WithDraft {...props} /> : <ComposerForm {...props} draft={null} onDiscard={() => undefined} />;
+}
+
+function WithDraft(props: ComposerProps) {
+  const key = draftKey(props.post?.id);
+  const [state, setState] = useState(() => {
+    const draft = readDraft(browserStorage(), key);
+    // a draft of an edit counts only when it is newer than what is saved
+    const newer = draft && (!props.post || draft.savedAt > Date.parse(props.post.updated_at));
+    return { draft: newer ? draft : null, epoch: 0 };
+  });
+  return (
+    <ComposerForm
+      key={state.epoch}
+      {...props}
+      draft={state.draft}
+      onDiscard={() => {
+        clearDraft(browserStorage(), key);
+        setState((previous) => ({ draft: null, epoch: previous.epoch + 1 }));
+      }}
+    />
+  );
+}
+
+function ComposerForm({ post, presetTags = [], draft, onDiscard }: ComposerProps & { draft: Draft | null; onDiscard: () => void }) {
   const router = useRouter();
   const initial = post ? fromPost(post) : null;
+  const key = draftKey(post?.id);
 
   const editorRef = useRef<NoteEditorHandle>(null);
   const playerRef = useRef<PlayerHandle>(null);
-  const [startDoc] = useState(() => (post ? sanitizeDocOrEmpty(post.body) : undefined));
+  const [startDoc] = useState(() => (draft ? draft.body : post ? sanitizeDocOrEmpty(post.body) : undefined));
   const doc = useRef<DocNode>(startDoc ?? EMPTY_DOC);
-  const [isEmpty, setIsEmpty] = useState(!post);
+  const [isEmpty, setIsEmpty] = useState(draft ? !hasContent({ body: draft.body, source: null }) : !post);
 
-  const [attached, setAttached] = useState<Attached | null>(initial?.attached ?? null);
-  const [tags, setTags] = useState<TagPick[]>(initial?.tags ?? presetTags);
-  const [visibility, setVisibility] = useState<Visibility>(post?.visibility ?? "public");
+  const [attached, setAttachedState] = useState<Attached | null>(draft ? attachedFromDraft(draft) : (initial?.attached ?? null));
+  const [tags, setTagsState] = useState<TagPick[]>(draft ? draft.tags : (initial?.tags ?? presetTags));
+  const [visibility, setVisibilityState] = useState<Visibility>(draft?.visibility ?? post?.visibility ?? "public");
+  const [restored, setRestored] = useState(draft !== null);
+
+  // Draft: saved a moment after the last change, and when the page is hidden (a phone may not give the
+  // timer the chance). `touched`: only what the person changed is saved, not the form as it was opened.
+  const touched = useRef(false);
+  const finished = useRef(false);
+  const [revision, setRevision] = useState(0);
+  const touch = () => {
+    touched.current = true;
+    setRevision((n) => n + 1);
+  };
+  const setAttached = (next: Attached | null) => {
+    setAttachedState(next);
+    touch();
+  };
+  const setTags = (next: TagPick[]) => {
+    setTagsState(next);
+    touch();
+  };
+  const setVisibility = (next: Visibility) => {
+    setVisibilityState(next);
+    touch();
+  };
+  useEffect(() => {
+    if (!touched.current) return;
+    const save = () => {
+      if (finished.current) return;
+      writeDraft(browserStorage(), key, {
+        body: doc.current,
+        source: attached ? ({ provider: attached.source.provider, ref: attached.source.ref, meta: attached.source.meta ?? null } as Draft["source"]) : null,
+        title: attached?.title ?? "",
+        tags,
+        visibility,
+      });
+    };
+    const timer = setTimeout(save, 800);
+    const onHidden = () => {
+      if (document.visibilityState === "hidden") save();
+    };
+    document.addEventListener("visibilitychange", onHidden);
+    window.addEventListener("pagehide", save);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onHidden);
+      window.removeEventListener("pagehide", save);
+    };
+  }, [revision, attached, tags, visibility, key]);
   const [startAt, setStartAt] = useState<number | undefined>(undefined);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(0);
@@ -63,13 +156,16 @@ export function PostComposer({ post, presetTags = [] }: { post?: PostDetailData;
   const resetWhenLeft = useResetOnHide(() => {
     setSaving(false);
     setError(null);
+    setRestored(false);
+    finished.current = false;
+    touched.current = false;
     if (post) return; // an edited post keeps what was just saved
     editorRef.current?.clear();
     doc.current = EMPTY_DOC;
     setIsEmpty(true);
-    setAttached(null);
-    setTags(presetTags);
-    setVisibility("public");
+    setAttachedState(null);
+    setTagsState(presetTags);
+    setVisibilityState("public");
     setStartAt(undefined);
   });
 
@@ -132,6 +228,8 @@ export function PostComposer({ post, presetTags = [] }: { post?: PostDetailData;
       setError(result.error);
       return;
     }
+    finished.current = true; // nothing after this is a draft
+    clearDraft(browserStorage(), key);
     resetWhenLeft();
     router.push(`/p/${result.id}`);
     router.refresh();
@@ -139,6 +237,17 @@ export function PostComposer({ post, presetTags = [] }: { post?: PostDetailData;
 
   return (
     <div className="space-y-4">
+      {restored && draft ? (
+        <p className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg bg-accent-soft px-3 py-2 text-sm text-accent">
+          <span>
+            已恢复上次没发布的草稿（<RelativeTime iso={new Date(draft.savedAt).toISOString()} />）。
+          </span>
+          <button type="button" className="tap underline underline-offset-2" onClick={onDiscard}>
+            放弃草稿
+          </button>
+        </p>
+      ) : null}
+
       {attached && playable ? (
         <div className="space-y-2">
           <SourcePlayer
@@ -167,6 +276,7 @@ export function PostComposer({ post, presetTags = [] }: { post?: PostDetailData;
         onChange={(next, empty) => {
           doc.current = next;
           setIsEmpty(empty);
+          touch();
         }}
         onChipClick={seek}
         onTimeShortcut={recordTime}
