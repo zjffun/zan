@@ -1,7 +1,7 @@
 import { collectImages } from "./doc/images";
 import { sanitizeDocOrEmpty, type DocNode } from "./doc/schema";
 import { docToPlainText } from "./doc/text";
-import { parseSourceInput, type SourceInput } from "./sources";
+import { parseSourceInput, type SourceInput } from "./source-input";
 import type { Visibility } from "./types";
 
 /**

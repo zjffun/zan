@@ -1,5 +1,6 @@
 import "server-only";
 import { redirect } from "next/navigation";
+import { cache } from "react";
 import { z } from "zod";
 import { supabaseConfig } from "./supabase/config";
 import { createClient } from "./supabase/server";
@@ -10,8 +11,11 @@ export interface CurrentUser {
   email: string | null;
 }
 
-/** The signed-in user, or null. Reads cookies: call inside <Suspense> / an action. */
-export async function getCurrentUser(): Promise<CurrentUser | null> {
+/**
+ * The signed-in user, or null. Reads cookies: call inside <Suspense> / an action. Asked for by the header,
+ * the page and its parts, it is worked out once for a request.
+ */
+export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   // Unconfigured (fresh checkout): behave as signed out so the public pages still render.
   if (!supabaseConfig()) return null;
   const supabase = await createClient();
@@ -19,7 +23,7 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
   const claims = data?.claims;
   if (!claims?.sub) return null;
   return { id: claims.sub, email: typeof claims.email === "string" ? claims.email : null };
-}
+});
 
 /**
  * The address the signed-in account has now. The session's token carries the one it had when it was

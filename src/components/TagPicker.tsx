@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { searchTags } from "@/app/actions/tags";
 import { attempt } from "@/lib/attempt";
-import { MAX_POST_TAGS } from "@/lib/post-input";
+import { MAX_POST_TAGS } from "@/lib/post-limits";
 import { normalizeTagName, tagKey } from "@/lib/tag-name";
 import { TAG_KIND_LABEL, type TagListItem } from "@/lib/types";
 

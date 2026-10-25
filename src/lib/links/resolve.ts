@@ -1,7 +1,7 @@
 import "server-only";
 import { isAllowedImageUrl, REDIRECT_ALLOWED_HOSTS } from "./hosts";
 import { parseLink, type ParsedLink } from "./parse";
-import { parseSourceInput, type SourceInput } from "../sources";
+import { parseSourceInput, type SourceInput } from "../source-input";
 import { BROWSER_USER_AGENT, fetchJson, followAllowedRedirects } from "../server/http";
 import { SharedCache } from "../server/cache";
 import type { SourceMeta } from "../types";

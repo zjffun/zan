@@ -3,9 +3,10 @@ import { createClient } from "@supabase/supabase-js";
 import { requireSupabaseConfig } from "./config";
 
 /**
- * Service-role client: bypasses row level security. Only for trusted
- * background work (the dead-source checker). Never hand it user input without
- * validating it, and never import it from code that renders pages.
+ * Service-role client: bypasses row level security. Only for work that has
+ * checked who is asking first (the dead-source checker, the takedown endpoint,
+ * uploads, deleting an account). Never hand it user input without validating
+ * it, and never import it from code that renders pages.
  */
 export function createAdminClient() {
   const { url } = requireSupabaseConfig();

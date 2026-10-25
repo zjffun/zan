@@ -7,7 +7,7 @@ import { attempt } from "@/lib/attempt";
 import { firstChipTime } from "@/lib/doc/chips";
 import { browserStorage, clearDraft, draftKey, hasContent, readDraft, writeDraft, type Draft } from "@/lib/draft";
 import { EMPTY_DOC, sanitizeDocOrEmpty, type ChipAttrs, type DocNode } from "@/lib/doc/schema";
-import { MAX_POST_TAGS } from "@/lib/post-input";
+import { MAX_POST_TAGS } from "@/lib/post-limits";
 import type { PostDetailData, Visibility } from "@/lib/types";
 import { NoteEditor, type NoteEditorHandle } from "./editor/NoteEditor";
 import { LinkAttach, type Attached } from "./LinkAttach";

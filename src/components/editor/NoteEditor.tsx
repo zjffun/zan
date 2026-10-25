@@ -5,17 +5,11 @@
    callback identities change. */
 
 import { EditorContent, useEditor, useEditorState } from "@tiptap/react";
-import { Placeholder } from "@tiptap/extensions";
-import StarterKit from "@tiptap/starter-kit";
 import { useEffect, useImperativeHandle, useMemo, useRef, useState, type Ref } from "react";
 import { EMPTY_DOC, sanitizeDocOrEmpty, safeHref, type ChipAttrs, type DocNode } from "@/lib/doc/schema";
 import { chipFromElement } from "@/lib/doc/chip-dom";
 import { IMAGE_TYPES, MAX_POST_IMAGES } from "@/lib/image";
-import { AnchorChip } from "./anchor-chip";
-import { BreaksAreParagraphs } from "./breaks-are-paragraphs";
-import { ImageUpload } from "./image-upload";
-import { PostImage } from "./post-image";
-import { QuoteExit } from "./quote-exit";
+import { buildExtensions } from "./extensions";
 
 export interface NoteEditorHandle {
   insertChip(attrs: ChipAttrs): void;
@@ -38,8 +32,6 @@ export interface NoteEditorProps {
   onChange?: (doc: DocNode, isEmpty: boolean) => void;
   /** A chip in the editor was clicked: jump there. */
   onChipClick?: (attrs: ChipAttrs) => void;
-  /** A chip appeared (typed shortcut or inserted): lets the form adopt it as the note's anchor. */
-  onChipAdded?: (attrs: ChipAttrs) => void;
   /** Alt+T */
   onTimeShortcut?: () => void;
   /** Cmd/Ctrl+Enter */
@@ -68,26 +60,13 @@ export function NoteEditor({ ref, ...props }: NoteEditorProps) {
     immediatelyRender: false,
     autofocus: props.autofocus ? "end" : false,
     content: initial,
-    extensions: [
-      StarterKit.configure({
-        ...(comment ? { heading: false, horizontalRule: false } : { heading: { levels: [1, 2] } }),
-        underline: false,
-        link: { openOnClick: false, autolink: true, protocols: ["http", "https", "mailto"] },
-      }),
-      Placeholder.configure({ placeholder: props.placeholder ?? "写点什么… 输入 @12:34 加空格，会变成可点击的时间标签" }),
-      AnchorChip.configure({ onTimeShortcut: () => latest.current.onTimeShortcut?.() }),
-      QuoteExit,
-      BreaksAreParagraphs,
-      ...(comment
-        ? []
-        : [
-            PostImage,
-            ImageUpload.configure({
-              onBusyChange: (running) => latest.current.onUploadingChange?.(running),
-              onError: (message) => setNotice(message),
-            }),
-          ]),
-    ],
+    extensions: buildExtensions({
+      variant: props.variant,
+      placeholder: props.placeholder,
+      onTimeShortcut: () => latest.current.onTimeShortcut?.(),
+      onUploadingChange: (running) => latest.current.onUploadingChange?.(running),
+      onUploadError: (message) => setNotice(message),
+    }),
     editorProps: {
       attributes: {
         class: `note-body ProseMirror px-3 py-2${comment ? " comment-editor" : ""}`,
@@ -111,22 +90,10 @@ export function NoteEditor({ ref, ...props }: NoteEditorProps) {
         return false;
       },
     },
-    onUpdate: ({ editor: e, transaction }) => {
+    onUpdate: ({ editor: e }) => {
       // ProseMirror node attrs are null-prototype objects, which React's Server Action
       // serializer silently drops (chips would arrive without attrs): hand out plain JSON.
       latest.current.onChange?.(JSON.parse(JSON.stringify(e.getJSON())) as DocNode, e.isEmpty);
-      // report chips that this transaction introduced
-      if (transaction.docChanged) {
-        const before = new Set<string>();
-        transaction.before.descendants((node) => {
-          if (node.type.name === "anchorChip") before.add(JSON.stringify(node.attrs));
-        });
-        e.state.doc.descendants((node) => {
-          if (node.type.name === "anchorChip" && !before.has(JSON.stringify(node.attrs))) {
-            latest.current.onChipAdded?.(node.attrs as ChipAttrs);
-          }
-        });
-      }
     },
   });
 

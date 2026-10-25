@@ -3,11 +3,12 @@ import { collectImages } from "./doc/images";
 import { DocError, sanitizeComment, sanitizeDoc, type DocNode } from "./doc/schema";
 import { docToPlainText } from "./doc/text";
 import { IMAGE_ONLY_TEXT, MAX_POST_IMAGES, parseImageKey } from "./image";
-import { parseSourceInput } from "./sources";
+import { MAX_COMMENT_LENGTH, MAX_POST_TAGS } from "./post-limits";
+import { parseSourceInput } from "./source-input";
 import { normalizeTagName, tagKey } from "./tag-name";
 import type { PostSource, Visibility } from "./types";
 
-export const MAX_POST_TAGS = 5;
+export { MAX_COMMENT_LENGTH, MAX_POST_TAGS };
 export const MAX_PLAIN_TEXT = 20_000;
 export { IMAGE_ONLY_TEXT };
 
@@ -97,7 +98,6 @@ export function preparePost(raw: unknown, author: string): PrepareResult {
   };
 }
 
-export const MAX_COMMENT_LENGTH = 1000;
 const MAX_COMMENT_DOC_BYTES = 30_000;
 
 export interface PreparedComment {

@@ -110,7 +110,7 @@ scripts/dev/local-stack.sh                # 建库、跑迁移，并打印要写
 ## 测试
 
 ```bash
-npm test            # 单元测试：链接解析、SSRF 防护、锚点、文档清洗与渲染、标签名与发帖校验、Markdown 导出……
+npm test            # 单元测试：链接解析、SSRF 防护、锚点、文档清洗与渲染、标签名与发帖校验、Markdown 导出、草稿、编辑器（在 jsdom 里跑真正的 TipTap 扩展：输入时间标签、换行、引用，以及编辑器写出来的内容服务端是否原样保留）……
 npm run test:db     # 在临时 PostgreSQL 库里跑迁移和 RLS 测试（需要本机有 PostgreSQL）
 npm run lint && npm run typecheck && npm run build
 ```

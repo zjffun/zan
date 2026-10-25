@@ -8,7 +8,7 @@ import { addComment, deleteComment } from "@/app/actions/comments";
 import { attempt } from "@/lib/attempt";
 import { EMPTY_DOC, type DocNode } from "@/lib/doc/schema";
 import { docToPlainText } from "@/lib/doc/text";
-import { MAX_COMMENT_LENGTH } from "@/lib/post-input";
+import { MAX_COMMENT_LENGTH } from "@/lib/post-limits";
 import type { CommentData } from "@/lib/types";
 import { Avatar } from "./Avatar";
 import type { NoteEditorHandle } from "./editor/NoteEditor";
