@@ -146,6 +146,7 @@ npm run lint && npm run typecheck && npm run build
 - **Vercel**：导入仓库，设置上面的环境变量即可；[`vercel.json`](vercel.json) 里配置了每天一次的失效检测。注意 Vercel 免费档只允许非商业用途
 - **Supabase** 免费项目长时间不活跃会被暂停；有稳定用户后再升级
 - 内存里的缓存和限流（`src/lib/server/`）是单实例的，多实例部署时换成 Redis / KV 即可
+- **登录 cookie**：HttpOnly（页面脚本读不到，浏览器里本来也没有 Supabase 客户端用它），SameSite=Lax，保存 30 天，每次令牌刷新（活跃时最多每小时一次）都会重新写成再 30 天，所以是“连续 30 天不来才掉线”，不是每 30 天登录一次；生产环境（`NODE_ENV=production`）一律加 Secure，所以必须走 https：用 `next start` 在非 localhost 的 http 地址上访问会存不住登录；开发环境（`npm run dev`）跟着请求走，http 的 localhost / 局域网不加 Secure（Safari 和非 localhost 地址会拒收 Secure cookie），经代理的 https 请求看 `x-forwarded-proto`。访问令牌 1 小时过期，刷新令牌默认不过期，想限制“多久不用就掉线”可以在 Supabase 后台设置会话超时
 
 ### 运维
 

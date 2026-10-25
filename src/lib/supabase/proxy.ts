@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { sessionCookieOptions, shouldUseSecureCookie } from "./cookies";
 
 /** Paths that need a signed-in user. */
 const PROTECTED = [/^\/new(\/|$)/, /^\/settings(\/|$)/, /^\/favorites(\/|$)/, /^\/p\/[^/]+\/edit(\/|$)/];
@@ -21,6 +22,11 @@ export async function updateSession(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
   if (!url || !key) return response;
 
+  const secure = shouldUseSecureCookie({
+    forwardedProto: request.headers.get("x-forwarded-proto"),
+    protocol: request.nextUrl.protocol,
+    production: process.env.NODE_ENV === "production",
+  });
   const supabase = createServerClient(url, key, {
     cookies: {
       getAll() {
@@ -29,7 +35,7 @@ export async function updateSession(request: NextRequest) {
       setAll(cookiesToSet, headers) {
         for (const { name, value } of cookiesToSet) request.cookies.set(name, value);
         response = NextResponse.next({ request });
-        for (const { name, value, options } of cookiesToSet) response.cookies.set(name, value, options);
+        for (const { name, value, options } of cookiesToSet) response.cookies.set(name, value, sessionCookieOptions(options, secure));
         for (const [name, value] of Object.entries(headers ?? {})) response.headers.set(name, value);
       },
     },
