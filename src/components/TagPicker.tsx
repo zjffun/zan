@@ -5,7 +5,8 @@ import { searchTags } from "@/app/actions/tags";
 import { attempt } from "@/lib/attempt";
 import { MAX_POST_TAGS } from "@/lib/post-limits";
 import { normalizeTagName, tagKey } from "@/lib/tag-name";
-import { TAG_KIND_LABEL, type TagListItem } from "@/lib/types";
+import type { PickerTag } from "@/lib/tag-rank";
+import { TAG_KIND_LABEL } from "@/lib/types";
 
 /** A tag in the picker: an existing one (has an id) or one that will be created when the post is published. */
 export interface TagPick {
@@ -21,7 +22,8 @@ const sameTag = (a: TagPick, b: TagPick) => (a.id && b.id ? a.id === b.id : tagK
  */
 export function TagPicker({ value, onChange }: { value: TagPick[]; onChange: (next: TagPick[]) => void }) {
   const [text, setText] = useState("");
-  const [results, setResults] = useState<TagListItem[]>([]);
+  const [results, setResults] = useState<PickerTag[]>([]);
+  const [recent, setRecent] = useState<PickerTag[]>([]);
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const latest = useRef(0);
@@ -35,7 +37,9 @@ export function TagPicker({ value, onChange }: { value: TagPick[]; onChange: (ne
     const ticket = ++latest.current;
     const timer = setTimeout(async () => {
       const response = await attempt(() => searchTags(query));
-      if (ticket === latest.current && response.ok) setResults(response.tags);
+      if (ticket !== latest.current || !response.ok) return;
+      setResults(response.tags);
+      setRecent(response.recent);
     }, 200);
     return () => clearTimeout(timer);
   }, [query]);
@@ -71,80 +75,103 @@ export function TagPicker({ value, onChange }: { value: TagPick[]; onChange: (ne
 
   const exactMatch = typedName ? results.some((t) => tagKey(t.name) === tagKey(typedName)) : false;
   const shown = results.filter((t) => !value.some((v) => v.id === t.id));
+  // the tags of my latest posts, one tap each: posting again under the same tag should not need the list
+  const quick = recent.filter((t) => !value.some((v) => sameTag(v, t)));
 
   return (
-    <div ref={root} className="relative">
-      <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-line bg-surface px-2 py-1.5 focus-within:border-accent">
-        {value.map((tag) => (
-          <span key={tag.id ?? `new:${tag.name}`} className="chip !bg-accent-soft !text-accent">
-            #{tag.name}
-            {tag.id ? null : <span className="opacity-70">（新）</span>}
-            <button
-              type="button"
-              className="ml-0.5 opacity-70 hover:opacity-100"
-              aria-label={`去掉标签 ${tag.name}`}
-              onClick={() => onChange(value.filter((t) => !sameTag(t, tag)))}
-            >
-              ✕
-            </button>
-          </span>
-        ))}
-        <input
-          className="min-w-32 flex-1 bg-transparent px-1 py-0.5 text-sm outline-none"
-          name="tag"
-          value={text}
-          onChange={(event) => {
-            setText(event.target.value);
-            setOpen(true);
-            setError(null);
-          }}
-          onFocus={() => setOpen(true)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") {
-              event.preventDefault();
-              addTyped();
-            } else if (event.key === "Backspace" && text === "" && value.length > 0) {
-              onChange(value.slice(0, -1));
-            }
-          }}
-          placeholder={value.length === 0 ? "加标签：搜索已有的，或直接新建" : value.length < MAX_POST_TAGS ? "再加一个" : ""}
-          disabled={value.length >= MAX_POST_TAGS}
-          aria-label="标签"
-          autoComplete="off"
-        />
-      </div>
-
-      {open && (shown.length > 0 || (typedName && !exactMatch)) ? (
-        <ul className="absolute left-0 right-0 top-full z-20 mt-1 max-h-64 overflow-y-auto rounded-xl border border-line bg-surface p-1 shadow-lg" role="listbox">
-          {shown.map((tag) => (
-            <li key={tag.id}>
+    <div ref={root}>
+      <div className="relative">
+        <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-line bg-surface px-2 py-1.5 focus-within:border-accent">
+          {value.map((tag) => (
+            <span key={tag.id ?? `new:${tag.name}`} className="chip !bg-accent-soft !text-accent">
+              #{tag.name}
+              {tag.id ? null : <span className="opacity-70">（新）</span>}
               <button
                 type="button"
-                role="option"
-                aria-selected={false}
-                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-sunken"
-                onClick={() => add({ id: tag.id, name: tag.name })}
+                className="ml-0.5 opacity-70 hover:opacity-100"
+                aria-label={`去掉标签 ${tag.name}`}
+                onClick={() => onChange(value.filter((t) => !sameTag(t, tag)))}
               >
-                <span className="min-w-0 flex-1 truncate">#{tag.name}</span>
-                {tag.kind ? <span className="chip">{TAG_KIND_LABEL[tag.kind]}</span> : null}
-                <span className="shrink-0 text-xs text-muted">{tag.post_count} 条内容</span>
+                ✕
               </button>
-            </li>
+            </span>
           ))}
-          {typedName && !exactMatch ? (
-            <li>
-              <button
-                type="button"
-                role="option"
-                aria-selected={false}
-                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-accent hover:bg-sunken"
-                onClick={addTyped}
-              >
-                新建标签 “#{typedName}”
-              </button>
-            </li>
-          ) : null}
-        </ul>
+          <input
+            className="min-w-32 flex-1 bg-transparent px-1 py-0.5 text-sm outline-none"
+            name="tag"
+            value={text}
+            onChange={(event) => {
+              setText(event.target.value);
+              setOpen(true);
+              setError(null);
+            }}
+            onFocus={() => setOpen(true)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                addTyped();
+              } else if (event.key === "Backspace" && text === "" && value.length > 0) {
+                onChange(value.slice(0, -1));
+              }
+            }}
+            placeholder={value.length === 0 ? "加标签：搜索已有的，或直接新建" : value.length < MAX_POST_TAGS ? "再加一个" : ""}
+            disabled={value.length >= MAX_POST_TAGS}
+            aria-label="标签"
+            autoComplete="off"
+          />
+        </div>
+
+        {open && (shown.length > 0 || (typedName && !exactMatch)) ? (
+          <ul className="absolute left-0 right-0 top-full z-20 mt-1 max-h-64 overflow-y-auto rounded-xl border border-line bg-surface p-1 shadow-lg" role="listbox">
+            {shown.map((tag) => (
+              <li key={tag.id}>
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={false}
+                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-sunken"
+                  onClick={() => add({ id: tag.id, name: tag.name })}
+                >
+                  <span className="min-w-0 flex-1 truncate">#{tag.name}</span>
+                  {tag.kind ? <span className="chip">{TAG_KIND_LABEL[tag.kind]}</span> : null}
+                  {tag.mine ? (
+                    <span className="shrink-0 text-xs text-accent">最近用过</span>
+                  ) : tag.post_count !== null ? (
+                    <span className="shrink-0 text-xs text-muted">{tag.post_count} 条内容</span>
+                  ) : null}
+                </button>
+              </li>
+            ))}
+            {typedName && !exactMatch ? (
+              <li>
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={false}
+                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-accent hover:bg-sunken"
+                  onClick={addTyped}
+                >
+                  新建标签 “#{typedName}”
+                </button>
+              </li>
+            ) : null}
+          </ul>
+        ) : null}
+      </div>
+      {quick.length > 0 && value.length < MAX_POST_TAGS ? (
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          <span className="text-xs text-muted">最近用过</span>
+          {quick.slice(0, 6).map((tag) => (
+            <button
+              key={tag.id}
+              type="button"
+              className="chip hover:!bg-accent-soft hover:!text-accent"
+              onClick={() => add({ id: tag.id, name: tag.name })}
+            >
+              #{tag.name}
+            </button>
+          ))}
+        </div>
       ) : null}
       {error ? (
         <p role="alert" className="mt-1 text-xs text-danger">

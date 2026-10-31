@@ -2,6 +2,7 @@ import "server-only";
 import { cacheLife, cacheTag } from "next/cache";
 import { FEED_PAGE_SIZE } from "./feed";
 import { SLUG_PATTERN } from "./slug";
+import type { PickerTag } from "./tag-rank";
 import { createAnonClient } from "./supabase/anon";
 import { createClient } from "./supabase/server";
 import { TAG_KINDS, type Profile, type TagInfo, type TagKind, type TagListItem } from "./types";
@@ -49,6 +50,33 @@ export async function listTags({ q = "", kind = null, sort = "hot", page = 1 }: 
     items: rows.slice(0, pageSize).map((row) => ({ ...row, kind: asKind(row.kind) })),
     hasMore: rows.length > pageSize,
   };
+}
+
+/**
+ * The tags that a person's latest posts used, most recent first: what the tag picker offers first. Read
+ * as that person (private posts of their own count), from their latest 50 posts, which is plenty to find a
+ * handful of different tags.
+ */
+export async function getMyRecentTags(userId: string, limit = 12): Promise<PickerTag[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("posts")
+    .select("post_tags(tag:tags(id, slug, name, kind))")
+    .eq("author", userId)
+    .order("created_at", { ascending: false })
+    .limit(50);
+  if (error) throw new Error(`could not load recent tags: ${error.message}`);
+  const seen = new Set<string>();
+  const out: PickerTag[] = [];
+  for (const post of (data ?? []) as unknown as { post_tags: { tag: { id: string; slug: string; name: string; kind: string | null } | null }[] | null }[]) {
+    for (const { tag } of post.post_tags ?? []) {
+      if (!tag || seen.has(tag.id)) continue;
+      seen.add(tag.id);
+      out.push({ id: tag.id, slug: tag.slug, name: tag.name, kind: asKind(tag.kind), post_count: null, mine: true });
+      if (out.length >= limit) return out;
+    }
+  }
+  return out;
 }
 
 /** The busiest tags, for the strip on the home page. Cached; any post change refreshes it. */

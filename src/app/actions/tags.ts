@@ -9,23 +9,37 @@ import { chargeNewTags } from "@/lib/server/tag-allowance";
 import { createOrFindTag } from "@/lib/server/tag-store";
 import { createClient } from "@/lib/supabase/server";
 import { MAX_TAG_NAME_LENGTH, normalizeTagName } from "@/lib/tag-name";
-import { listTags } from "@/lib/tags";
-import { TAG_KINDS, type TagListItem, type TagRef } from "@/lib/types";
+import { pickerList, type PickerTag } from "@/lib/tag-rank";
+import { getMyRecentTags, listTags } from "@/lib/tags";
+import { TAG_KINDS, type TagRef } from "@/lib/types";
 import { getBangumiWork, searchBangumi } from "@/lib/works/bangumi";
 import { getOpenLibraryWork, searchOpenLibrary } from "@/lib/works/openlibrary";
 import { tagFromWorkInputSchema, type WorkCandidate, type WorkRecord } from "@/lib/works/types";
 
 const POSTGRES_UNIQUE_VIOLATION = "23505";
 
-/** For the tag picker: existing tags that match what is being typed. */
-export async function searchTags(q: string): Promise<ActionResult<{ tags: TagListItem[] }>> {
+/**
+ * For the tag picker: existing tags that match what is being typed, my recent ones first (see pickerList),
+ * and, whatever is typed, my recent tags for the one-tap row under the box.
+ */
+export async function searchTags(q: string): Promise<ActionResult<{ tags: PickerTag[]; recent: PickerTag[] }>> {
   const user = await getCurrentUser();
   if (!user) return fail("请先登录。");
   if (typeof q !== "string") return fail("参数无效。");
   const limited = await enforce(LIMITS.tagSearch, user.id);
   if (!limited.ok) return fail(`搜索太频繁，请 ${limited.retryAfter} 秒后再试。`);
-  const { items } = await listTags({ q: q.trim().replace(/^[#＃]+/, "").slice(0, 60), sort: "hot" }, 8);
-  return { ok: true, tags: items };
+  const query = q.trim().replace(/^[#＃]+/, "").slice(0, 60);
+  const [recent, found] = await Promise.all([
+    // a failure here only costs the "recent" part
+    getMyRecentTags(user.id).catch((error) => {
+      logError("tags.recent", error, { user: user.id });
+      return [] as PickerTag[];
+    }),
+    // with something typed, look at more than the busiest eight, so that a name that starts with it is not left out
+    listTags({ q: query, sort: "hot" }, query ? 30 : 8),
+  ]);
+  const candidates = found.items.map((tag): PickerTag => ({ id: tag.id, slug: tag.slug, name: tag.name, kind: tag.kind, post_count: tag.post_count, mine: false }));
+  return { ok: true, tags: pickerList({ query, recent, found: candidates }), recent: recent.slice(0, 6) };
 }
 
 const manualTagSchema = z.object({
