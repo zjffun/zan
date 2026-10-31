@@ -1,3 +1,4 @@
+import type { KeyValueStorage } from "./browser-storage";
 import { collectImages } from "./doc/images";
 import { sanitizeDocOrEmpty, type DocNode } from "./doc/schema";
 import { docToPlainText } from "./doc/text";
@@ -24,8 +25,6 @@ export interface Draft {
   /** milliseconds since 1970 */
   savedAt: number;
 }
-
-type DraftStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 
 /** One draft for a new post, and one for each post being edited. */
 export const draftKey = (postId?: string) => (postId ? `zan:draft:edit:${postId}` : "zan:draft:new");
@@ -70,7 +69,7 @@ function parseDraft(value: unknown, now: number): Draft | null {
 }
 
 /** The saved draft, or null (nothing saved, too old, not readable, or storage is not available). */
-export function readDraft(storage: DraftStorage, key: string, now = Date.now()): Draft | null {
+export function readDraft(storage: KeyValueStorage, key: string, now = Date.now()): Draft | null {
   try {
     const raw = storage.getItem(key);
     return raw ? parseDraft(JSON.parse(raw), now) : null;
@@ -80,7 +79,7 @@ export function readDraft(storage: DraftStorage, key: string, now = Date.now()):
 }
 
 /** Saves the draft, or forgets it when there is nothing in it. Never throws: a full or blocked storage just means no draft. */
-export function writeDraft(storage: DraftStorage, key: string, draft: Omit<Draft, "savedAt">, now = Date.now()): void {
+export function writeDraft(storage: KeyValueStorage, key: string, draft: Omit<Draft, "savedAt">, now = Date.now()): void {
   try {
     if (!hasContent(draft)) storage.removeItem(key);
     else storage.setItem(key, JSON.stringify({ v: 1, ...draft, savedAt: now }));
@@ -89,16 +88,7 @@ export function writeDraft(storage: DraftStorage, key: string, draft: Omit<Draft
   }
 }
 
-/** This browser's storage, or one that keeps nothing when the browser does not allow it (private windows, blocked site data). */
-export function browserStorage(): DraftStorage {
-  try {
-    return window.localStorage;
-  } catch {
-    return { getItem: () => null, setItem: () => undefined, removeItem: () => undefined };
-  }
-}
-
-export function clearDraft(storage: DraftStorage, key: string): void {
+export function clearDraft(storage: KeyValueStorage, key: string): void {
   try {
     storage.removeItem(key);
   } catch {

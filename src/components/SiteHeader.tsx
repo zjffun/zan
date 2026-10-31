@@ -41,6 +41,9 @@ export function HeaderView({ user }: { user: HeaderUser | null | "loading" }) {
           <Link href="/tags" className="btn btn-quiet btn-sm">
             标签
           </Link>
+          <Link href="/scales" className="btn btn-quiet btn-sm">
+            量表
+          </Link>
 
           {user === "loading" ? null : (
             <>
