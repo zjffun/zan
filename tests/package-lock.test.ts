@@ -30,6 +30,15 @@ describe("package-lock.json", () => {
     expect(elsewhere, "regenerate with: npm install --registry=https://registry.npmjs.org/").toEqual([]);
   });
 
+  // From 1.42.7 to 1.42.8, ProseMirror treated the pinyin getting shorter under an input method as a
+  // Backspace press and asked TipTap's key handlers, whose empty update ended the composition (tiptap#8626).
+  // 1.42.9 does not do that while composing. The editor has nothing of its own against it.
+  it("has a prosemirror-view that keeps an input method's composition on Backspace", () => {
+    const version = lock.packages["node_modules/prosemirror-view"]?.version ?? "0.0.0";
+    const [major, minor, patch] = version.split(".").map(Number);
+    expect(major * 1e6 + minor * 1e3 + patch, `prosemirror-view ${version}, needs 1.42.9 or newer`).toBeGreaterThanOrEqual(1_042_009);
+  });
+
   // An entry without a version is an optional-dependency stub that makes `npm install` on another
   // platform fail with "Invalid Version".
   it("has a version for every package", () => {

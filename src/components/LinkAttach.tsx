@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { previewLink } from "@/app/actions/link";
 import { attempt } from "@/lib/attempt";
+import { isImeKey } from "@/lib/ime";
 import type { ResolvedLink } from "@/lib/links/resolve";
 import { PROVIDER_LABEL } from "@/lib/sources";
 import { formatTimestamp } from "@/lib/time";
@@ -104,7 +105,7 @@ export function LinkAttach({
           value={url}
           onChange={(event) => setUrl(event.target.value)}
           onKeyDown={(event) => {
-            if (event.key === "Enter") {
+            if (event.key === "Enter" && !isImeKey(event.nativeEvent)) {
               event.preventDefault();
               void resolve();
             }

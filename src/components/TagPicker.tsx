@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { searchTags } from "@/app/actions/tags";
 import { attempt } from "@/lib/attempt";
+import { isImeKey } from "@/lib/ime";
 import { MAX_POST_TAGS } from "@/lib/post-limits";
 import { normalizeTagName, tagKey } from "@/lib/tag-name";
 import type { PickerTag } from "@/lib/tag-rank";
@@ -107,6 +108,7 @@ export function TagPicker({ value, onChange }: { value: TagPick[]; onChange: (ne
             }}
             onFocus={() => setOpen(true)}
             onKeyDown={(event) => {
+              if (isImeKey(event.nativeEvent)) return; // the Enter that confirms pinyin is not "add this tag"
               if (event.key === "Enter") {
                 event.preventDefault();
                 addTyped();
