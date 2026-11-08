@@ -1,9 +1,9 @@
 import Link from "next/link";
-import { signOut } from "@/app/actions/auth";
 import { getCurrentProfile } from "@/lib/dal";
 import { Avatar } from "./Avatar";
 import { PlusIcon, SearchIcon } from "./icons";
 import { Menu, menuItemClass } from "./Menu";
+import { SignOutItem } from "./SignOutItem";
 
 export interface HeaderUser {
   id: string;
@@ -73,11 +73,7 @@ export function HeaderView({ user }: { user: HeaderUser | null | "loading" }) {
                   <Link href="/settings" className={menuItemClass} role="menuitem">
                     设置
                   </Link>
-                  <form action={signOut}>
-                    <button type="submit" className={menuItemClass} role="menuitem">
-                      退出登录
-                    </button>
-                  </form>
+                  <SignOutItem />
                 </Menu>
               ) : (
                 <Link href="/login" className="btn btn-sm">

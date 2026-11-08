@@ -4,21 +4,10 @@ import { IMAGE_BUCKET, MAX_UPLOAD_BYTES, MAX_UPLOAD_EDGE, newImageKey } from "@/
 import { sniffImage } from "@/lib/image-sniff";
 import { enforce, LIMITS } from "@/lib/server/limits";
 import { logError } from "@/lib/server/log";
+import { sameOrigin } from "@/lib/server/same-origin";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 const reply = (status: number, error: string, headers?: HeadersInit) => NextResponse.json({ error }, { status, headers });
-
-/** The request came from a page of this site (a form on another site cannot upload as the signed-in user). */
-function sameOrigin(request: NextRequest): boolean {
-  const origin = request.headers.get("origin");
-  if (!origin) return true; // not sent by every client; the session cookie is SameSite=Lax anyway
-  const host = request.headers.get("x-forwarded-host") ?? request.headers.get("host");
-  try {
-    return new URL(origin).host === host;
-  } catch {
-    return false;
-  }
-}
 
 /**
  * Stores one picture for a post: multipart form with a `file` field, answers with its key and size.

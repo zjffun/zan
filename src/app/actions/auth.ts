@@ -57,9 +57,3 @@ export async function authenticate(_prev: AuthState, formData: FormData): Promis
   if (error) return { error: "邮箱或密码不正确。" };
   redirect(next);
 }
-
-export async function signOut(): Promise<void> {
-  const supabase = await createClient();
-  await supabase.auth.signOut();
-  redirect("/");
-}
