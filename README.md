@@ -30,7 +30,7 @@ zan 是“攒”：一个“只存引用，不存内容”的内容社区，看�
 - **分享图**：每条公开内容自带 OG 图（视频缩略图 + 文字，中文字体）
 - **导出 Markdown**：在“设置”里把自己的全部内容导出成一个文件；时间锚点导出成 `youtu.be/ID?t=754` / `bilibili.com/video/BV…?t=754` 链接，页码锚点导出成 `p.132`
 - **失效检测**：定时检查 YouTube / B 站视频，连续两次判定失效才标记 `dead`（B 站会把被限流的请求答成“找不到”，一次不足为信），播放器换成“视频已失效”占位，文字保留
-- 邮箱登录（密码或邮件链接，Supabase Auth）
+- 登录：邮箱（密码或邮件链接，Supabase Auth），也可以用 GitHub / Google 账号（在 Supabase 里开启之后，登录页才会出现对应按钮，见“快速开始”第 3 步）
 
 **还没做**：浏览器插件、导入 Kindle / 微信读书笔记、关注用户、通知、内容编辑历史、标签管理（合并、改名）和审核后台。
 
@@ -74,7 +74,8 @@ cp .env.example .env.local   # 填入 SUPABASE_URL、SUPABASE_ANON_KEY 等
 
 1. 在 Supabase 的 SQL Editor 里按编号依次运行 [`supabase/migrations/`](supabase/migrations) 里的 `0001`、`0003`、`0004`（也可以用 `supabase db push`）。`0004` 把早期的“每人每部作品一份私人笔记”模型换成现在的标签 + 内容；如果要中文友好的搜索，最后再运行 [`0005_pgroonga_posts.sql`](supabase/migrations/0005_pgroonga_posts.sql)（`0002` 是旧模型的 PGroonga 版本，`0004` 之后用不上，可以跳过）。
 2. Authentication → URL Configuration：把 Site URL 设为你的站点地址，并在 Redirect URLs 里加入 `<站点地址>/auth/callback`。想用邮箱+密码注册后立即登录，可以在 Providers → Email 里关掉 “Confirm email”。
-3. 运行：
+3. （可选）用 GitHub / Google 账号登录：在 Authentication → Sign In / Providers 里分别开启 GitHub 和 Google，填各自平台申请的 Client ID 和 Secret。Supabase 会给出一个回调地址 `https://<项目编号>.supabase.co/auth/v1/callback`，把它填到 GitHub 的 OAuth App（Authorization callback URL）和 Google Cloud 的 OAuth 客户端（已获授权的重定向 URI）里；登录后回到站点用的是上一步的 `<站点地址>/auth/callback`，所以那一步的白名单也要加上。登录页自己向 Supabase 问哪些已开启（`/auth/v1/settings`，结果缓存几分钟），只给已开启的显示按钮，代码和环境变量里没有别的要设：没开启就只有邮箱登录，开启后几分钟内按钮自己出现。GitHub 账号如果不公开邮箱，登录进来的账号就没有邮箱：设置里的“登录邮箱”是空的，删除账号时输入“删除”来确认。
+4. 运行：
 
 ```bash
 npm run dev      # http://localhost:3000
@@ -89,7 +90,7 @@ brew install postgresql@16 postgrest      # 或从 github.com/PostgREST/postgres
 scripts/dev/local-stack.sh                # 建库、跑迁移，并打印要写进 .env.local 的变量
 ```
 
-启动后用固定的开发账号登录：邮箱 `dev@zan.local`，密码见 [`scripts/dev/mock-supabase.mjs`](scripts/dev/mock-supabase.mjs) 顶部的 `DEV_PASSWORD`（可用环境变量 `ZAN_DEV_EMAIL` / `ZAN_DEV_PASSWORD` 改）。网关重启会忘掉其他账号的密码，开发账号不会。第一次启动还会放几个标签、几条示例内容（以及两位不能登录的示例作者）和一些评论、点赞，让首页信息流不是空的（`ZAN_DEV_SEED=0` 跳过；它们只在库里一条内容都没有时才会生成）。以后新增的迁移再运行这个脚本时会自动补上；从旧模型升级时，直接删掉本地库 `dropdb zan_dev` 再运行一次最省事。
+启动后用固定的开发账号登录：邮箱 `dev@zan.local`，密码见 [`scripts/dev/mock-supabase.mjs`](scripts/dev/mock-supabase.mjs) 顶部的 `DEV_PASSWORD`（可用环境变量 `ZAN_DEV_EMAIL` / `ZAN_DEV_PASSWORD` 改）。网关重启会忘掉其他账号的密码，开发账号不会。GitHub / Google 在本地是两个“立刻同意”的替身（账号是 `github-user@zan.local` 和 `google-user@zan.local`），登录页的两个按钮能走完整个流程：跳转、回调、用 PKCE 换会话。第一次启动还会放几个标签、几条示例内容（以及两位不能登录的示例作者）和一些评论、点赞，让首页信息流不是空的（`ZAN_DEV_SEED=0` 跳过；它们只在库里一条内容都没有时才会生成）。以后新增的迁移再运行这个脚本时会自动补上；从旧模型升级时，直接删掉本地库 `dropdb zan_dev` 再运行一次最省事。
 
 如果用的是下载的 PostgREST 二进制，它链接的是 Homebrew 的 libpq；没装的话用 `LIBPQ_DIR=/opt/homebrew/opt/postgresql@16/lib scripts/dev/local-stack.sh` 指向任意 libpq 5。
 

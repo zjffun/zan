@@ -2,11 +2,13 @@
 
 import { useActionState } from "react";
 import { authenticate, type AuthState } from "@/app/actions/auth";
+import { OAUTH_LABELS, type OAuthProvider } from "@/lib/auth-providers";
+import { useHydrated } from "@/lib/use-hydrated";
 
-export function LoginForm({ next, linkError }: { next: string; linkError: boolean }) {
-  const [state, formAction, pending] = useActionState<AuthState, FormData>(authenticate, {
-    error: linkError ? "登录链接已失效，请重新发送。" : undefined,
-  });
+/** `providers`: the outside accounts that can be used (the ones switched on in Supabase). `error`: what the page was sent here for. */
+export function LoginForm({ next, error, providers }: { next: string; error?: string; providers: OAuthProvider[] }) {
+  const [state, formAction, pending] = useActionState<AuthState, FormData>(authenticate, { error });
+  const hydrated = useHydrated();
 
   return (
     <form action={formAction} className="mt-6 space-y-4">
@@ -63,6 +65,24 @@ export function LoginForm({ next, linkError }: { next: string; linkError: boolea
           发送登录链接
         </button>
       </div>
+
+      {providers.length > 0 ? (
+        <>
+          <p className="flex items-center gap-3 text-xs text-muted before:h-px before:flex-1 before:bg-line after:h-px after:flex-1 after:bg-line">
+            或使用第三方账号
+          </p>
+          {/* formNoValidate: the e-mail box above is "required", and these do not use it. `hydrated`: the way on goes
+              through a redirect to another site, which only the running page can follow (sent as a plain form, the
+              page's own rules (form-action 'self') stop it and nothing seems to happen), so they wait for it. */}
+          <div className="flex flex-wrap gap-2">
+            {providers.map((provider) => (
+              <button key={provider} className="btn" name="intent" value={provider} disabled={pending || !hydrated} formNoValidate>
+                使用 {OAUTH_LABELS[provider]} 登录
+              </button>
+            ))}
+          </div>
+        </>
+      ) : null}
     </form>
   );
 }

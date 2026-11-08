@@ -4,7 +4,9 @@
 //
 //   /rest/v1/*  -> PostgREST (the same engine Supabase uses), unchanged
 //   /auth/v1/*  -> just enough of GoTrue: password sign-up/sign-in, token
-//                  refresh, /user, logout. Users are auto-confirmed.
+//                  refresh, /user, logout. Users are auto-confirmed. "GitHub" and "Google" are
+//                  stand-ins that say yes at once (see /authorize), so the whole sign-in with an outside
+//                  account (redirect, callback, code exchange with PKCE) can be tried here.
 //   /storage/v1/object/* -> just enough of Storage: upload (service role only) and public
 //                  download, kept as plain files under .dev/storage (ZAN_DEV_STORAGE).
 //
@@ -12,7 +14,7 @@
 // signing in keeps working after a restart, which forgets every other password.
 //
 // DEV ONLY. Passwords live in memory, there is no rate limiting, no e-mail,
-// no OAuth. Never expose this to a network.
+// no real OAuth. Never expose this to a network.
 
 import http from "node:http";
 import crypto from "node:crypto";
@@ -46,6 +48,7 @@ function verify(token) {
 
 const users = new Map(); // email -> { id, email, password }
 const refreshTokens = new Map(); // token -> email
+const oauthCodes = new Map(); // code handed back by /authorize -> { provider, challenge, method }
 
 function userRow(user) {
   const now = new Date().toISOString();
@@ -58,7 +61,7 @@ function userRow(user) {
     phone: "",
     confirmed_at: now,
     last_sign_in_at: now,
-    app_metadata: { provider: "email", providers: ["email"] },
+    app_metadata: { provider: user.provider ?? "email", providers: [user.provider ?? "email"] },
     user_metadata: {},
     identities: [],
     created_at: now,
@@ -126,8 +129,45 @@ async function auth(req, res, url) {
     return json(res, 200, session(user));
   }
 
+  // which sign-in methods are switched on: the app reads this to know which buttons to show
+  if (route === "/settings" && req.method === "GET") {
+    return json(res, 200, { external: { email: true, github: true, google: true }, disable_signup: false, mailer_autoconfirm: true });
+  }
+
+  // Sign in with an outside account. There is no GitHub or Google here: the "provider" says yes at once and sends
+  // the browser back to `redirect_to` with a code, like the real one does after the person has agreed.
+  if (route === "/authorize" && req.method === "GET") {
+    const provider = url.searchParams.get("provider") ?? "";
+    const redirectTo = url.searchParams.get("redirect_to");
+    if (!["github", "google"].includes(provider) || !redirectTo) {
+      return gotrueError(res, 400, "validation_failed", "unsupported provider, or no redirect_to");
+    }
+    const code = crypto.randomBytes(16).toString("hex");
+    oauthCodes.set(code, { provider, challenge: url.searchParams.get("code_challenge"), method: url.searchParams.get("code_challenge_method") });
+    const back = new URL(redirectTo);
+    back.searchParams.set("code", code);
+    res.writeHead(302, { location: back.toString() });
+    return res.end();
+  }
+
   if (route === "/token" && req.method === "POST") {
     const grant = url.searchParams.get("grant_type");
+    if (grant === "pkce") {
+      const entry = oauthCodes.get(body.auth_code);
+      oauthCodes.delete(body.auth_code); // a code works once
+      const verifier = String(body.code_verifier ?? "");
+      const expected = entry?.method?.toLowerCase() === "s256" ? crypto.createHash("sha256").update(verifier).digest("base64url") : verifier;
+      if (!entry) return gotrueError(res, 400, "flow_state_not_found", "invalid flow state, no valid flow state found");
+      if (expected !== entry.challenge) return gotrueError(res, 400, "bad_code_verifier", "code challenge does not match previously saved code verifier");
+      const email = `${entry.provider}-user@zan.local`;
+      let user = users.get(email);
+      if (!user) {
+        user = { id: existingIdFromDb(email) ?? crypto.randomUUID(), email, password: crypto.randomBytes(16).toString("hex"), provider: entry.provider };
+        users.set(email, user);
+        ensureUserInDb(user);
+      }
+      return json(res, 200, session(user));
+    }
     if (grant === "password") {
       const user = users.get(String(body.email ?? "").toLowerCase());
       if (!user || user.password !== body.password) return gotrueError(res, 400, "invalid_credentials", "Invalid login credentials");
@@ -140,7 +180,7 @@ async function auth(req, res, url) {
       refreshTokens.delete(body.refresh_token);
       return json(res, 200, session(user));
     }
-    return gotrueError(res, 400, "unsupported_grant_type", "only password and refresh_token are supported here");
+    return gotrueError(res, 400, "unsupported_grant_type", "only password, refresh_token and pkce are supported here");
   }
 
   if (route === "/user" && req.method === "GET") {

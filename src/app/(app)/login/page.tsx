@@ -2,14 +2,23 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { LoginForm } from "@/components/LoginForm";
 import { safeNextPath } from "@/lib/site";
+import { enabledOAuthProviders } from "@/lib/supabase/providers";
 
 export const metadata: Metadata = { title: "登录" };
+
+/** Why the person was sent back here (see /auth/callback). */
+const ERRORS: Record<string, string> = {
+  link: "登录链接已失效，请重新发送。",
+  oauth: "第三方账号登录没有完成，请再试一次。",
+};
 
 async function Form({ searchParams }: Pick<PageProps<"/login">, "searchParams">) {
   const params = await searchParams;
   const next = safeNextPath(Array.isArray(params.next) ? params.next[0] : params.next);
-  const linkError = params.error === "link";
-  return <LoginForm next={next} linkError={linkError} />;
+  const reason = Array.isArray(params.error) ? params.error[0] : params.error;
+  // the address is anybody's to write: only the reasons listed here become text
+  const error = reason !== undefined && Object.hasOwn(ERRORS, reason) ? ERRORS[reason] : undefined;
+  return <LoginForm next={next} error={error} providers={await enabledOAuthProviders()} />;
 }
 
 export default function LoginPage(props: PageProps<"/login">) {
