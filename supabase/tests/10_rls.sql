@@ -830,6 +830,36 @@ select t.ok((select count(*) from public.comments where post_id = '60000000-0000
   'the author sees the comments on their private post');
 rollback;
 
+-- a public post that has comments and then turns private takes them out of sight with it, and back again
+begin;
+select set_config('request.jwt.claims', json_build_object('sub', :A::text)::text, true);
+set local role authenticated;
+update public.posts set visibility = 'private' where id = '60000000-0000-0000-0000-0000000000a1';
+select t.ok((select count(*) from public.comments where post_id = '60000000-0000-0000-0000-0000000000a1') = 2,
+  'the author still sees the comments of the post they made private');
+reset role;
+select set_config('request.jwt.claims', '', true);
+set local role anon;
+select t.ok((select count(*) from public.comments where post_id = '60000000-0000-0000-0000-0000000000a1') = 0,
+  'anon no longer sees the comments of a post that turned private');
+reset role;
+select set_config('request.jwt.claims', json_build_object('sub', :B::text)::text, true);
+set local role authenticated;
+select t.ok((select count(*) from public.comments where post_id = '60000000-0000-0000-0000-0000000000a1') = 0,
+  'nor does a person who wrote one of the comments');
+select t.raises($$ insert into public.comments (post_id, body) values ('60000000-0000-0000-0000-0000000000a1', 'still here?') $$,
+  'or comment on it', '42501');
+reset role;
+select set_config('request.jwt.claims', json_build_object('sub', :A::text)::text, true);
+set local role authenticated;
+update public.posts set visibility = 'public' where id = '60000000-0000-0000-0000-0000000000a1';
+reset role;
+select set_config('request.jwt.claims', '', true);
+set local role anon;
+select t.ok((select count(*) from public.comments where post_id = '60000000-0000-0000-0000-0000000000a1') = 2,
+  'made public again, its comments are back');
+rollback;
+
 -- who can comment where
 begin;
 select set_config('request.jwt.claims', json_build_object('sub', :B::text)::text, true);
