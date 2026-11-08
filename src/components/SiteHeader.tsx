@@ -13,7 +13,10 @@ export interface HeaderUser {
 /** Pure presentation: no cookie access, so it can be part of the static shell. */
 export function HeaderView({ user }: { user: HeaderUser | null | "loading" }) {
   return (
-    <header className="border-b border-line bg-paper/90 backdrop-blur">
+    // `relative z-40`: backdrop-blur makes the header a layer of its own, and the account menu's z-30 only counts inside
+    // it. Without a z-index of its own that layer sits at the bottom, under anything on the page with z-10 or z-20 (the
+    // click layer and the rows of a post card), which then cover the menu's lower rows. Keep it above them (z-20 at most).
+    <header className="relative z-40 border-b border-line bg-paper/90 backdrop-blur">
       <div className="mx-auto flex h-14 max-w-6xl items-center gap-3 px-4">
         <Link href="/" className="tap inline-flex items-center text-lg font-semibold tracking-tight">
           zan
