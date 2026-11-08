@@ -7,7 +7,7 @@ import { useRef, useState } from "react";
 import { addComment, deleteComment } from "@/app/actions/comments";
 import { attempt } from "@/lib/attempt";
 import { EMPTY_DOC, type DocNode } from "@/lib/doc/schema";
-import { docToPlainText } from "@/lib/doc/text";
+import { plainTextLength } from "@/lib/doc/text";
 import { MAX_COMMENT_LENGTH } from "@/lib/post-limits";
 import type { CommentData } from "@/lib/types";
 import { Avatar } from "./Avatar";
@@ -186,7 +186,7 @@ function CommentForm({
     );
   }
 
-  const length = empty ? 0 : Array.from(docToPlainText(doc)).length;
+  const length = empty ? 0 : plainTextLength(doc);
 
   async function submit() {
     if (busy || empty) return;

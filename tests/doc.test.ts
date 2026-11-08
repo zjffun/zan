@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { sanitizeDoc, sanitizeDocOrEmpty, DocError, type DocNode } from "@/lib/doc/schema";
 import { renderDocHtml } from "@/lib/doc/render";
-import { docToPlainText } from "@/lib/doc/text";
+import { docToPlainText, plainTextLength } from "@/lib/doc/text";
 import { docToMarkdown } from "@/lib/doc/markdown";
 
 const doc = (...content: DocNode[]): DocNode => ({ type: "doc", content });
@@ -304,6 +304,19 @@ describe("docToPlainText", () => {
       p(text("a"), { type: "hardBreak" }, text("b")),
     );
     expect(docToPlainText(d)).toBe("看到 12:34 才懂\n一\n二\na\nb");
+  });
+});
+
+describe("plainTextLength", () => {
+  it("counts what the limits count: characters of the plain text, labels and line breaks included", () => {
+    // "看到 12:34 才懂" is 11 characters (the label counts as its five), the line break between the lines is one
+    expect(plainTextLength(doc(p(text("看到 "), chip({ t: 754 }), text(" 才懂")), p(text("ab"))))).toBe(11 + 1 + 2);
+    expect(plainTextLength(doc(p()))).toBe(0);
+  });
+
+  it("counts an emoji as one character, not two", () => {
+    expect(plainTextLength(doc(p(text("😀😀"))))).toBe(2);
+    expect("😀😀".length).toBe(4);
   });
 });
 

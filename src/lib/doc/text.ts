@@ -47,3 +47,11 @@ export function docToPlainText(doc: DocNode): string {
     .filter((line) => line.length > 0)
     .join("\n");
 }
+
+/**
+ * How many characters the limits on a post and on a comment count: the plain text above, by characters
+ * (an emoji is one, not two), line breaks and time labels included.
+ */
+export function plainTextLength(doc: DocNode): number {
+  return Array.from(docToPlainText(doc)).length;
+}

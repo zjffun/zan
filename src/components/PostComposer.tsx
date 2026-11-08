@@ -8,7 +8,8 @@ import { browserStorage } from "@/lib/browser-storage";
 import { firstChipTime } from "@/lib/doc/chips";
 import { clearDraft, draftKey, hasContent, readDraft, writeDraft, type Draft } from "@/lib/draft";
 import { EMPTY_DOC, sanitizeDocOrEmpty, type ChipAttrs, type DocNode } from "@/lib/doc/schema";
-import { MAX_POST_TAGS } from "@/lib/post-limits";
+import { plainTextLength } from "@/lib/doc/text";
+import { MAX_PLAIN_TEXT, MAX_POST_TAGS } from "@/lib/post-limits";
 import type { PostDetailData, Visibility } from "@/lib/types";
 import { NoteEditor, type NoteEditorHandle } from "./editor/NoteEditor";
 import { LinkAttach, type Attached } from "./LinkAttach";
@@ -20,6 +21,8 @@ import { TagPicker, type TagPick } from "./TagPicker";
 import { useResetOnHide } from "@/lib/use-reset-on-hide";
 
 const YOUTUBE_HINT = "“记录当前时间”或按 Alt+T，会在光标处放一个可点击的时间标签。";
+/** What "publish" answers to a text that is too long. The counter under the text keeps count from there. */
+const TOO_LONG = "内容太长了（最多 2 万字）";
 
 /** Turns a saved post back into what the composer edits. */
 function fromPost(post: PostDetailData): {
@@ -96,6 +99,8 @@ function ComposerForm({ post, presetTags = [], draft, onDiscard }: ComposerProps
   const [startDoc] = useState(() => (draft ? draft.body : post ? sanitizeDocOrEmpty(post.body) : undefined));
   const doc = useRef<DocNode>(startDoc ?? EMPTY_DOC);
   const [isEmpty, setIsEmpty] = useState(draft ? !hasContent({ body: draft.body, source: null }) : !post);
+  // the characters the 20000 limit is counted on; kept in state because the document itself is in a ref
+  const [length, setLength] = useState(() => (startDoc ? plainTextLength(startDoc) : 0));
 
   const [attached, setAttachedState] = useState<Attached | null>(draft ? attachedFromDraft(draft) : (initial?.attached ?? null));
   const [tags, setTagsState] = useState<TagPick[]>(draft ? draft.tags : (initial?.tags ?? presetTags));
@@ -164,6 +169,7 @@ function ComposerForm({ post, presetTags = [], draft, onDiscard }: ComposerProps
     editorRef.current?.clear();
     doc.current = EMPTY_DOC;
     setIsEmpty(true);
+    setLength(0);
     setAttachedState(null);
     setTagsState(presetTags);
     setVisibilityState("public");
@@ -205,6 +211,11 @@ function ComposerForm({ post, presetTags = [], draft, onDiscard }: ComposerProps
 
     if (isEmpty && !attached) {
       setError("先写点什么，或者贴一个链接。");
+      return;
+    }
+    // the server's words; said here as well because the server, for one paragraph that long, only says "text node is too long"
+    if (length > MAX_PLAIN_TEXT) {
+      setError(`${TOO_LONG}，超出 ${length - MAX_PLAIN_TEXT} 字。`);
       return;
     }
 
@@ -269,21 +280,30 @@ function ComposerForm({ post, presetTags = [], draft, onDiscard }: ComposerProps
         </div>
       ) : null}
 
-      <NoteEditor
-        ref={editorRef}
-        initial={startDoc}
-        placeholder="写点什么… 输入 @12:34 加空格，会变成可点击的时间标签"
-        autofocus
-        onChange={(next, empty) => {
-          doc.current = next;
-          setIsEmpty(empty);
-          touch();
-        }}
-        onChipClick={seek}
-        onTimeShortcut={recordTime}
-        onSubmit={submit}
-        onUploadingChange={setUploading}
-      />
+      <div className="space-y-1">
+        <NoteEditor
+          ref={editorRef}
+          initial={startDoc}
+          placeholder="写点什么… 输入 @12:34 加空格，会变成可点击的时间标签"
+          autofocus
+          onChange={(next, empty) => {
+            doc.current = next;
+            setIsEmpty(empty);
+            setLength(empty ? 0 : plainTextLength(next));
+            // the number in that message is out of date as soon as the text changes
+            setError((current) => (current?.startsWith(TOO_LONG) ? null : current));
+            touch();
+          }}
+          onChipClick={seek}
+          onTimeShortcut={recordTime}
+          onSubmit={submit}
+          onUploadingChange={setUploading}
+        />
+        <p className={`text-right text-xs tabular-nums ${length > MAX_PLAIN_TEXT ? "text-danger" : "text-muted"}`}>
+          {length}/{MAX_PLAIN_TEXT}
+          {length > MAX_PLAIN_TEXT ? `，超出 ${length - MAX_PLAIN_TEXT} 字，发布前请删减` : null}
+        </p>
+      </div>
 
       <LinkAttach value={attached} onChange={setAttached} onAttached={linkAttached} />
 

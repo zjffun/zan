@@ -3,13 +3,12 @@ import { collectImages } from "./doc/images";
 import { DocError, sanitizeComment, sanitizeDoc, type DocNode } from "./doc/schema";
 import { docToPlainText } from "./doc/text";
 import { IMAGE_ONLY_TEXT, MAX_POST_IMAGES, parseImageKey } from "./image";
-import { MAX_COMMENT_LENGTH, MAX_POST_TAGS } from "./post-limits";
+import { MAX_COMMENT_LENGTH, MAX_PLAIN_TEXT, MAX_POST_TAGS } from "./post-limits";
 import { parseSourceInput } from "./source-input";
 import { normalizeTagName, tagKey } from "./tag-name";
 import type { PostSource, Visibility } from "./types";
 
-export { MAX_COMMENT_LENGTH, MAX_POST_TAGS };
-export const MAX_PLAIN_TEXT = 20_000;
+export { MAX_COMMENT_LENGTH, MAX_PLAIN_TEXT, MAX_POST_TAGS };
 export { IMAGE_ONLY_TEXT };
 
 /** What the composer sends; everything in it is untrusted. */
