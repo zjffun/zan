@@ -97,15 +97,18 @@ export function preparePost(raw: unknown, author: string): PrepareResult {
   };
 }
 
+// A Chinese character is 3 bytes of JSON, and every paragraph repeats its wrapper (about 60 bytes), so a comment of
+// MAX_COMMENT_LENGTH characters stays far below this even when it is cut into many short paragraphs (see the test).
+// The column refuses 50000 bytes (`comments_doc_check`, migration 0009); this is the stricter of the two.
 const MAX_COMMENT_DOC_BYTES = 30_000;
 
 export interface PreparedComment {
   doc: DocNode;
-  /** what the document says in plain text: this is what the 1000 characters are counted on */
+  /** what the document says in plain text: this is what the characters of MAX_COMMENT_LENGTH are counted on */
   text: string;
 }
 
-/** Checks and cleans a comment: a small document (paragraphs, quotes, lists, code, links, time labels), 1–1000 characters of text. */
+/** Checks and cleans a comment: a small document (paragraphs, quotes, lists, code, links, time labels), 1–MAX_COMMENT_LENGTH characters of text. */
 export function prepareComment(raw: unknown): { ok: true; value: PreparedComment } | { ok: false; error: string } {
   let doc: DocNode;
   try {
@@ -114,7 +117,7 @@ export function prepareComment(raw: unknown): { ok: true; value: PreparedComment
     return { ok: false, error: "评论无效。" };
   }
   const text = docToPlainText(doc);
-  if (!text) return { ok: false, error: "评论要 1–1000 个字。" };
+  if (!text) return { ok: false, error: `评论要 1–${MAX_COMMENT_LENGTH} 个字。` };
   if (Array.from(text).length > MAX_COMMENT_LENGTH) return { ok: false, error: `评论太长了（最多 ${MAX_COMMENT_LENGTH} 个字）。` };
   // links and marks add bytes that the text does not show; the column refuses 50000 bytes of JSON
   if (new TextEncoder().encode(JSON.stringify(doc)).length > MAX_COMMENT_DOC_BYTES) return { ok: false, error: "评论太复杂了，请删减一些格式或链接。" };

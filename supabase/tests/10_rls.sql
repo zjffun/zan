@@ -893,12 +893,12 @@ rollback;
 begin;
 select set_config('request.jwt.claims', json_build_object('sub', :B::text)::text, true);
 set local role authenticated;
-select t.ok(t.rows($$ insert into public.comments (post_id, body) values ('60000000-0000-0000-0000-0000000000c1', repeat('x', 1000)) $$) = 1,
-  'a 1000 character comment is fine');
+select t.ok(t.rows($$ insert into public.comments (post_id, body) values ('60000000-0000-0000-0000-0000000000c1', repeat('x', 5000)) $$) = 1,
+  'a 5000 character comment is fine');
 select t.ok(t.rows($$ insert into public.comments (post_id, body) values ('60000000-0000-0000-0000-0000000000c1', 'x') $$) = 1,
   'a one character comment is fine');
-select t.raises($$ insert into public.comments (post_id, body) values ('60000000-0000-0000-0000-0000000000c1', repeat('x', 1001)) $$,
-  'a comment over 1000 characters is rejected', '23514');
+select t.raises($$ insert into public.comments (post_id, body) values ('60000000-0000-0000-0000-0000000000c1', repeat('x', 5001)) $$,
+  'a comment over 5000 characters is rejected', '23514');
 select t.raises($$ insert into public.comments (post_id, body) values ('60000000-0000-0000-0000-0000000000c1', '') $$,
   'an empty comment is rejected', '23514');
 select t.raises($$ insert into public.comments (post_id, body) values ('60000000-0000-0000-0000-0000000000c1', '    ') $$,

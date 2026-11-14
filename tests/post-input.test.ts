@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { IMAGE_ONLY_TEXT, MAX_PLAIN_TEXT, MAX_POST_TAGS, prepareComment, preparePost } from "@/lib/post-input";
+import { IMAGE_ONLY_TEXT, MAX_COMMENT_LENGTH, MAX_PLAIN_TEXT, MAX_POST_TAGS, prepareComment, preparePost } from "@/lib/post-input";
 
 const doc = (...content: unknown[]) => ({ type: "doc", content });
 const para = (...content: unknown[]) => ({ type: "paragraph", content });
@@ -182,8 +182,22 @@ describe("prepareComment", () => {
     for (const bad of ["", "字", null, undefined, 1, {}, comment(), comment(paragraph()), comment(paragraph(text("   ")))]) {
       expect(prepareComment(bad).ok, JSON.stringify(bad)).toBe(false);
     }
-    expect(prepareComment(comment(paragraph(text("字".repeat(1000))))).ok).toBe(true);
-    expect(prepareComment(comment(paragraph(text("字".repeat(1001))))).ok).toBe(false);
+    expect(prepareComment(comment(paragraph(text("字".repeat(MAX_COMMENT_LENGTH))))).ok).toBe(true);
+    const tooLong = prepareComment(comment(paragraph(text("字".repeat(MAX_COMMENT_LENGTH + 1)))));
+    expect(tooLong.ok).toBe(false);
+    expect(!tooLong.ok && tooLong.error).toContain(String(MAX_COMMENT_LENGTH));
+  });
+
+  // The limit on characters is not the only one: the document is limited in bytes too (30000 of JSON), and Chinese
+  // characters are 3 bytes and every paragraph repeats its wrapper. A full-length comment must still get through
+  // when it is cut into many short paragraphs, which is the worst a person does by hand.
+  it("takes a comment of the longest length cut into many short paragraphs", () => {
+    const perLine = 39;
+    const lines = Math.floor((MAX_COMMENT_LENGTH + 1) / (perLine + 1)); // the line breaks between them count too
+    const result = prepareComment(comment(...Array.from({ length: lines }, () => paragraph(text("字".repeat(perLine))))));
+    expect(result.ok).toBe(true);
+    expect(result.ok && Array.from(result.value.text).length).toBe(lines * perLine + (lines - 1));
+    expect(lines * perLine + (lines - 1)).toBeGreaterThan(MAX_COMMENT_LENGTH - perLine - 1);
   });
 
   it("does not take a deeply nested or huge document", () => {
