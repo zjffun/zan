@@ -1,6 +1,6 @@
 # zan
 
-**在线体验：<https://zanzanzan.vercel.app>**
+**在线体验：<https://zan.zjffun.com>**
 
 zan 是“攒”：一个“只存引用，不存内容”的内容社区，看过的、读过的，一点一点攒下来。
 
@@ -195,7 +195,7 @@ GitHub Actions（[`ci.yml`](.github/workflows/ci.yml)）在每次推送到 `main
 ## 部署
 
 - **Vercel**：导入仓库，设置上面的环境变量即可；[`vercel.json`](vercel.json) 里配置了每天一次的失效检测。注意 Vercel 免费档只允许非商业用途
-- **域名**：现在线上是 <https://zanzanzan.vercel.app>。换域名时，除了在 Vercel 里加新的：Supabase 的 Authentication → URL Configuration 里把 Site URL 改成新地址，Redirect URLs 里加上 `<新地址>/auth/callback`，并把旧地址那条删掉（旧名字被别人注册之后，登录的跳转会被送到他们那里）；如果在 Vercel 里设过 `SITE_URL`，或在 `ZAN_USER_AGENT` 里写过域名，也要换；GitHub 仓库 About 里的网站也要改。`localStorage` 按域名分开存，草稿和量表记录不会跟到新域名上，换之前想留的先搬走
+- **域名**：现在线上是 <https://zan.zjffun.com>。换域名时，除了在 Vercel 里加新的：Supabase 的 Authentication → URL Configuration 里把 Site URL 改成新地址，Redirect URLs 里加上 `<新地址>/auth/callback`，并把旧地址那条删掉（旧名字被别人注册之后，登录的跳转会被送到他们那里）；如果在 Vercel 里设过 `SITE_URL`，或在 `ZAN_USER_AGENT` 里写过域名，也要换；GitHub 仓库 About 里的网站也要改。`localStorage` 按域名分开存，草稿和量表记录不会跟到新域名上，换之前想留的先搬走
 - **从本机用命令行部署**（不需要先把 GitHub 仓库连到 Vercel）：`npx vercel login`，`npx vercel link --project <名字>`，用 `printf %s "$值" | npx vercel env add 名字 -e production --sensitive` 逐个写入环境变量，再 `npx vercel deploy --prod`。[`vercel.json`](vercel.json) 把函数放在东京（`hnd1`），和 Supabase 的东京区域同区；换了数据库区域，这里也要改
 - **`package-lock.json` 里的下载地址必须是公网源**：锁文件里的 `resolved` 如果指向 Vercel 访问不到的地址，`npm install` 会直接失败。用 `npm install --registry=https://registry.npmjs.org/` 重新生成；`npm test` 里的 `tests/package-lock.test.ts` 会检查每一项都来自 `registry.npmjs.org`
 - **上线带图片、多位置功能的版本前**，先在 Supabase 的 SQL 编辑器里按顺序运行 [`0006_post_images.sql`](supabase/migrations/0006_post_images.sql)（建存储桶 `post-images`，可重复运行）、[`0007_post_positions.sql`](supabase/migrations/0007_post_positions.sql)（只增加列、不删旧列，所以先迁移、后部署，或反过来都不会让现有页面坏掉；不可重复运行）和 [`0008_edited_means_edited.sql`](supabase/migrations/0008_edited_means_edited.sql)（只有正文、链接、位置、可见范围真的改了，才更新“已编辑”的时间；失效检测、下架、不改内容的保存都不算；可重复运行。之前被失效检测动过的内容会保留那个时间，分不出哪些是真编辑）；环境变量不用加。之后的 [`0009_rich_comments.sql`](supabase/migrations/0009_rich_comments.sql)（评论加一列 `doc`，只增加，先后部署都行）和 [`0010_positions_into_text.sql`](supabase/migrations/0010_positions_into_text.sql)（只改数据：把位置列表写进正文，运行 0011 之前可重复运行）也在部署前运行；[`0011_drop_old_positions.sql`](supabase/migrations/0011_drop_old_positions.sql) 要等新版本部署好之后再运行，因为旧版本还会读那两列；[`0013_longer_comments.sql`](supabase/migrations/0013_longer_comments.sql)（评论的字数检查从 1000 放宽到 5000，只放宽，旧版本照常能用，所以先运行、后部署；可重复运行）。`/media/…` 的改写在构建时读 `SUPABASE_URL`，所以这个变量要在 Vercel 的构建环境里也有。Vercel 函数的请求体上限是 4.5 MB，所以上传限制在 3 MB 以内，靠浏览器先缩小
