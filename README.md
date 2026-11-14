@@ -1,5 +1,7 @@
 # zan
 
+**在线体验：<https://zanzanzan.vercel.app>**
+
 zan 是“攒”：一个“只存引用，不存内容”的内容社区，看过的、读过的，一点一点攒下来。
 
 在这里你可以直接发一条内容：一段想法，或者一个 B 站 / YouTube 视频、一个链接，再给它挂上标签。标签就是大家聚在一起的地方（像贴吧里的“吧”）：动漫、书、某一部作品、任何话题；内容则像小红书笔记、Threads 帖子一样，每一条都是独立的。
@@ -10,7 +12,7 @@ zan 是“攒”：一个“只存引用，不存内容”的内容社区，看�
 
 - **首页是信息流**：打开就是大家发布的内容（瀑布流卡片），可以切到“关注”（你关注的标签下的内容），上面有热门标签；顶栏的“新建”和首页顶部的输入条随时可以发布内容，没登录点它们会先去登录，再回到发布页
 - **发布内容和新建标签**
-  - **发布内容**：写文字（支持加粗、列表、链接等），可以贴 **YouTube** / **B 站**（含分 P、`?t=`、`b23.tv` 短链）或任意网页链接，视频里的时间直接写在正文里（`@12:34`），想记几处都行，后面接着写自己的话；书的页码就当普通文字写（`p.132`），不是标签；挂 0–5 个标签，选已有的，或现场新建；可见范围是“所有人”或“仅自己可见”（私人草稿）
+  - **发布内容**：写文字（支持加粗、列表、链接等），可以贴 **YouTube** / **B 站**（含分 P、`?t=`、`b23.tv` 短链）或任意网页链接，视频里的时间直接写在正文里（`@12:34`），想记几处都行，后面接着写自己的话；书的页码就当普通文字写（`p.132`），不是标签；挂 0–5 个标签，选已有的，或现场新建；可见范围是“所有人”或“仅自己可见”（私人草稿）；正文最多 2 万字，编辑器下面有实时字数，超了变红并写明超出多少（评论是 1–1000 字，也有字数显示）
   - **新建标签**（入口在发布页的标签框里“新建标签 #xxx”和标签页；顶栏的“新建”和首页顶部的输入条只发布内容）：从 **Bangumi**（动画、书、漫画、游戏、真人剧）或 **Open Library**（书，可按 ISBN）搜一部作品，名字、封面和类型自动带上；或者手动建一个话题标签
 - **选标签**：发布页的标签框下面有一排“最近用过”，是你最近发布的内容用过的标签，点一下就加上，连续往同一个标签发内容不用再搜；点开列表时，没输入的话先列这些，再用全站最热的补满；输入时按“完全相同、开头一致、包含”的顺序排，同档里你最近用过的在前、其余按热度（[`tag-rank.ts`](src/lib/tag-rank.ts)）。“最近”按你最新 50 条内容里标签的使用先后算，不需要额外的表
 - **草稿自动保存**：写的时候每次改动之后 0.8 秒，以及页面被隐藏时，内容、链接、标签和可见范围会存在这台浏览器的 `localStorage`（只在本机，不上传）；刷新或关掉再打开，发布页顶部会说“已恢复上次没发布的草稿”，可以放弃。发布成功后清掉；编辑已有内容时，草稿比已保存的版本新才会恢复；一个月没动过的草稿会忘掉；浏览器不让存（隐私窗口等）时就没有草稿，不影响写作
@@ -23,14 +25,13 @@ zan 是“攒”：一个“只存引用，不存内容”的内容社区，看�
 - **标签页**：每个标签有自己的页面（介绍、封面、内容数、关注数、关注按钮、“在这个标签下发布”），`/tags` 可以按类型、热度、名字浏览
 - **互动**：点赞、收藏（“我的收藏”）、评论和回复（一层）、关注标签；作者可以删除自己内容下的任何评论
 - **作者**：每个人有昵称、简介和主页；在“设置”里修改
-- **账号**：在“设置”里改登录邮箱（Supabase 会给新邮箱发确认邮件，点了链接才生效）、设置或修改密码、删除账号。删除要输入自己的邮箱来确认，会永久删掉账号和你发布的内容、评论、点赞、收藏、关注（数据库从用户一路级联删除，[`10_rls.sql`](supabase/tests/10_rls.sql) 里有测试）和上传的图片（服务端用 service role 清掉存储桶里以你的 id 命名的文件夹，失败只记日志，因为文件名猜不到）；你建过的标签会留下，它们属于用过的所有人。删除账号需要 `SUPABASE_SERVICE_ROLE_KEY`
+- **账号**：用邮箱登录（密码或邮件链接），也可以用 GitHub / Google 账号（在 Supabase 里开启之后，登录页才会出现对应按钮，见“快速开始”第 3 步）；在“设置”里改登录邮箱（Supabase 会给新邮箱发确认邮件，点了链接才生效）、设置或修改密码、删除账号。删除要输入自己的邮箱来确认，会永久删掉账号和你发布的内容、评论、点赞、收藏、关注（数据库从用户一路级联删除，[`10_rls.sql`](supabase/tests/10_rls.sql) 里有测试）和上传的图片（服务端用 service role 清掉存储桶里以你的 id 命名的文件夹，失败只记日志，因为文件名猜不到）；你建过的标签会留下，它们属于用过的所有人。删除账号需要 `SUPABASE_SERVICE_ROLE_KEY`
 - **搜索**：`/search` 同时搜内容和标签，未登录也能用；默认 `ILIKE`，在 Supabase 上启用 PGroonga 后换成中文/日文友好的版本（见下文）
 - **量表**：`/scales` 把常用的心理量表做成网页上直接作答的测验，现在有 PHQ-9、GAD-7、DASS-21、Rosenberg 自尊量表和 Neff 的自我关怀量表简版 SCS-SF（都是可自由使用的公开量表，页面上写明出处和条款）。一次一题：点一下选项就进入下一题，也可以按数字键，随时回头改；答完自动算分，给出总分、分量表分和解读；结果页可以回看每一题的回答、复制成文字、清除本机记录。作答进度和最近一次结果只存在这台浏览器的 `localStorage`（不上传，不需要登录）。怎么再加一份，见下文“量表”
 - **书与练习**（`/books`，先做了个草稿）：按阅读的顺序（先止痛、学会和念头相处、看清模式、重新出发）列出每本书里的量表和练习，标出哪些有公开的内容、用什么条款（可用于本站、官方免费、仅限个人使用、要购买或授权、没找到公开版）。只整理出处、状态和链接，不抄书里的原文；数据在 [`src/lib/books/data.ts`](src/lib/books/data.ts)，是一次网上查到的结果，没有逐条核实，所以页面带 `noindex`，不进站点地图。书里的量表做进本站后，在对应的条目上写 `scaleId`，页面就会出现“在本站作答”的链接
 - **分享图**：每条公开内容自带 OG 图（视频缩略图 + 文字，中文字体）
 - **导出 Markdown**：在“设置”里把自己的全部内容导出成一个文件；时间锚点导出成 `youtu.be/ID?t=754` / `bilibili.com/video/BV…?t=754` 链接，页码锚点导出成 `p.132`
 - **失效检测**：定时检查 YouTube / B 站视频，连续两次判定失效才标记 `dead`（B 站会把被限流的请求答成“找不到”，一次不足为信），播放器换成“视频已失效”占位，文字保留
-- 登录：邮箱（密码或邮件链接，Supabase Auth），也可以用 GitHub / Google 账号（在 Supabase 里开启之后，登录页才会出现对应按钮，见“快速开始”第 3 步）
 
 **还没做**：浏览器插件、导入 Kindle / 微信读书笔记、关注用户、通知、内容编辑历史、标签管理（合并、改名）和审核后台。
 
@@ -103,7 +104,7 @@ scripts/dev/local-stack.sh                # 建库、跑迁移，并打印要写
 | 变量 | 作用 |
 | --- | --- |
 | `SUPABASE_SERVICE_ROLE_KEY` | 失效检测定时任务、下架接口和图片上传使用，绕过 RLS，务必只放服务端 |
-| `SITE_URL` | 站点地址（sitemap、分享图、邮件链接） |
+| `SITE_URL` | 站点地址（sitemap、分享图、邮件链接）。在 Vercel 上可以不设：没设时用 Vercel 提供的 `VERCEL_PROJECT_PRODUCTION_URL`（项目的生产域名，换域名后下一次部署才更新）；再没有，邮件链接用请求自己的域名，其余回退到 `http://localhost:3000` |
 | `REPORT_EMAIL` | “举报”发往的邮箱 |
 | `BANGUMI_ACCESS_TOKEN`、`ZAN_USER_AGENT` | Bangumi 要求带 User-Agent，也提供 Access Token |
 | `YOUTUBE_API_KEY` | 可选：补上视频时长和“是否允许外嵌”（有每日配额） |
@@ -114,7 +115,7 @@ scripts/dev/local-stack.sh                # 建库、跑迁移，并打印要写
 ## 测试
 
 ```bash
-npm test            # 单元测试：链接解析、SSRF 防护、锚点、文档清洗与渲染、标签名与发帖校验、Markdown 导出、草稿、量表（计分的边界：反向题、缺题、区间两端；每份量表的数据是否自洽；本机记录）、编辑器（在 jsdom 里跑真正的 TipTap 扩展：输入时间标签、换行、引用，以及编辑器写出来的内容服务端是否原样保留）……
+npm test            # 单元测试：链接解析、SSRF 防护、锚点、文档清洗与渲染、标签名与发帖校验、Markdown 导出、草稿、量表（计分的边界：反向题、缺题、区间两端；每份量表的数据是否自洽；本机记录）、编辑器（在 jsdom 里跑真正的 TipTap 扩展：输入时间标签、换行、引用，以及编辑器写出来的内容服务端是否原样保留）、输入法按键（回车确认拼音不算提交）、同源检查、退出登录的记号、登录提供方、字数统计……
 npm run test:db     # 在临时 PostgreSQL 库里跑迁移和 RLS 测试（需要本机有 PostgreSQL）
 npm run lint && npm run typecheck && npm run build
 ```
@@ -158,6 +159,13 @@ GitHub Actions（[`ci.yml`](.github/workflows/ci.yml)）在每次推送到 `main
 - **只存在本机**（[`storage.ts`](src/lib/scales/storage.ts)）：`zan:scale:<id>:progress` 是做到一半的答案（30 天没动就忘），`zan:scale:<id>:result` 是最近一次完成的答案；存的是答案而不是分数，每次读出来重新算，所以解读文字改了，旧结果也跟着更新。读回来时检查版本和每个值；浏览器不让存时一切照常，只是不记。列表页用 `useSyncExternalStore` 读，服务端渲染空的一行、浏览器里再补上，所以页面外壳仍是静态的
 - **版权**：每份量表的 `source` 都要写明出处、使用条款和 `rights`。`open` 是可自由使用（或取得了许可）的；`unconfirmed` 是还没有取得公开发布许可的（比如《性格的陷阱》里的问卷）：列表里这张卡上有“未获授权 · 个人试用”的标记，量表的介绍页和结果页顶部都有一条“版权提示”（文字在 [`rights.ts`](src/lib/scales/rights.ts)，站长可以改），页面带 `noindex`，也不进站点地图。中文题目是本站译写的，不是官方译本。**这只是标注，不是授权**：把没有许可的量表放在公开站点上，风险仍然在站长这边；`SCALE_GROUPS` 里已经有“人生陷阱问卷”这一组，里面还没有量表时不显示
 
+**登录与退出登录**（[`auth.ts`](src/app/actions/auth.ts)、[`/auth/callback`](src/app/auth/callback/route.ts)、[`/auth/signout`](src/app/auth/signout/route.ts)）
+
+- **邮箱和 GitHub / Google 是同一个登录动作的几种 `intent`**。第三方登录在服务端发起：`signInWithOAuth` 在服务端只生成跳转地址，并把 PKCE 的 code verifier 存进 cookie；回来时 `/auth/callback`（邮件链接也走它）用 `code` 换出会话，所以发起登录的域名和回来的域名要一致。在第三方那边取消或被拒绝，回来时带的是 `error=…` 而不是 `code`，会回到登录页并提示，同时保留原来要去的页面
+- **哪些第三方已开启，登录页自己问 Supabase**（[`providers.ts`](src/lib/supabase/providers.ts) 读 `/auth/v1/settings`，缓存几分钟，问不到就当没有）：开启了才显示按钮，不用再设环境变量。按钮要等页面能运行后才能点（[`useHydrated`](src/lib/use-hydrated.ts)）：浏览器原生提交表单时，跳到别的网站的重定向会被页面的 `form-action 'self'` 拦住，看上去什么都没发生
+- **退出登录是整页跳转**：菜单里的按钮是一个普通表单，POST 到 `/auth/signout`（只收 POST、只收同源），清掉会话后 303 回 `/`，浏览器加载新页面。用 Server Action 的话，旧页面和它保留的所有页面（见下面“页面状态”）会留在浏览器里，里面有只有登录者看得到的内容。重定向的地址写成相对的 `/`：绝对地址是服务端按它自己认为的来源拼的，不一致时会被 `form-action 'self'` 悄悄吞掉
+- **光整页跳转还不够**：浏览器可能把离开的页面放进后退缓存，按“后退”时原样放回来，还是登录状态。所以退出时表单会在 `localStorage` 记下时间（`zan:signed-out-at`，[`sign-out-mark.ts`](src/lib/sign-out-mark.ts)），一个页面被放回来时，如果发现退出发生在它被显示之后（或读不了存储），就先隐藏再重新加载（[`SignOutItem.tsx`](src/components/SignOutItem.tsx)）；没退出过时，“后退”还是瞬间的，写到一半的东西也还在。`next dev` 给页面带 `no-store`，浏览器不缓存，所以这个问题只出现在线上：想测，要用 `next build` 加 `next start`，并把页面的缓存头换成 Vercel 给的 `public, max-age=0, must-revalidate`
+
 **防 XSS**
 
 内容没有任何“原始 HTML”节点。写入时服务端用白名单（`src/lib/doc/schema.ts`）清洗 TipTap JSON：只保留已知节点、标记和属性，链接只允许 `http(s)` / `mailto`；渲染用同一套白名单从 JSON 生成转义过的 HTML。评论用同一个编辑器，存成 `comments.doc`，服务端用更小的白名单（`sanitizeComment`：段落、引用、列表、代码块、链接、时间标签，没有图片和标题）清洗，字数按纯文本算 1–1000，渲染成 HTML 也在服务端；点评论里的时间标签会让上面的播放器跳过去。编辑器只在有人点评论框时才加载。
@@ -187,6 +195,7 @@ GitHub Actions（[`ci.yml`](.github/workflows/ci.yml)）在每次推送到 `main
 ## 部署
 
 - **Vercel**：导入仓库，设置上面的环境变量即可；[`vercel.json`](vercel.json) 里配置了每天一次的失效检测。注意 Vercel 免费档只允许非商业用途
+- **域名**：现在线上是 <https://zanzanzan.vercel.app>。换域名时，除了在 Vercel 里加新的：Supabase 的 Authentication → URL Configuration 里把 Site URL 改成新地址，Redirect URLs 里加上 `<新地址>/auth/callback`，并把旧地址那条删掉（旧名字被别人注册之后，登录的跳转会被送到他们那里）；如果在 Vercel 里设过 `SITE_URL`，或在 `ZAN_USER_AGENT` 里写过域名，也要换；GitHub 仓库 About 里的网站也要改。`localStorage` 按域名分开存，草稿和量表记录不会跟到新域名上，换之前想留的先搬走
 - **从本机用命令行部署**（不需要先把 GitHub 仓库连到 Vercel）：`npx vercel login`，`npx vercel link --project <名字>`，用 `printf %s "$值" | npx vercel env add 名字 -e production --sensitive` 逐个写入环境变量，再 `npx vercel deploy --prod`。[`vercel.json`](vercel.json) 把函数放在东京（`hnd1`），和 Supabase 的东京区域同区；换了数据库区域，这里也要改
 - **`package-lock.json` 里的下载地址必须是公网源**：锁文件里的 `resolved` 如果指向 Vercel 访问不到的地址，`npm install` 会直接失败。用 `npm install --registry=https://registry.npmjs.org/` 重新生成；`npm test` 里的 `tests/package-lock.test.ts` 会检查每一项都来自 `registry.npmjs.org`
 - **上线带图片、多位置功能的版本前**，先在 Supabase 的 SQL 编辑器里按顺序运行 [`0006_post_images.sql`](supabase/migrations/0006_post_images.sql)（建存储桶 `post-images`，可重复运行）、[`0007_post_positions.sql`](supabase/migrations/0007_post_positions.sql)（只增加列、不删旧列，所以先迁移、后部署，或反过来都不会让现有页面坏掉；不可重复运行）和 [`0008_edited_means_edited.sql`](supabase/migrations/0008_edited_means_edited.sql)（只有正文、链接、位置、可见范围真的改了，才更新“已编辑”的时间；失效检测、下架、不改内容的保存都不算；可重复运行。之前被失效检测动过的内容会保留那个时间，分不出哪些是真编辑）；环境变量不用加。之后的 [`0009_rich_comments.sql`](supabase/migrations/0009_rich_comments.sql)（评论加一列 `doc`，只增加，先后部署都行）和 [`0010_positions_into_text.sql`](supabase/migrations/0010_positions_into_text.sql)（只改数据：把位置列表写进正文，运行 0011 之前可重复运行）也在部署前运行；[`0011_drop_old_positions.sql`](supabase/migrations/0011_drop_old_positions.sql) 要等新版本部署好之后再运行，因为旧版本还会读那两列。`/media/…` 的改写在构建时读 `SUPABASE_URL`，所以这个变量要在 Vercel 的构建环境里也有。Vercel 函数的请求体上限是 4.5 MB，所以上传限制在 3 MB 以内，靠浏览器先缩小
@@ -211,6 +220,7 @@ GitHub Actions（[`ci.yml`](.github/workflows/ci.yml)）在每次推送到 `main
 - 评论只有一层回复，不能编辑，也不能贴图（可以用粗体、链接、引用、列表、代码和时间标签）；没有举报评论的入口，也没有通知
 - 图片没有配额和回收：每个用户每天最多传 60 张，但不会清理不再被引用的图片；下架一条内容只是隐藏它，图片文件仍在存储桶里
 - 每个用户的内容 / 标签 / 评论数量没有配额，只有每个用户的操作频率限制（配了 Redis 才跨实例生效，见“限流与查询缓存”）
+- 整篇是一个超过 2 万字的段落时，没法发布（服务端对单个文本节点也只收 2 万字），关掉再打开，草稿也读不回来；分成几段就能恢复，字数显示会写明超出多少
 
 ## 许可
 
