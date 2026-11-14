@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { commentHtml } from "@/lib/comment-html";
+import { commentDocument, commentHtml } from "@/lib/comment-html";
 
 describe("commentHtml", () => {
   it("shows a comment from before the editor line by line, with its text escaped", () => {
@@ -11,6 +11,17 @@ describe("commentHtml", () => {
   it("renders the document of a comment", () => {
     const doc = { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "粗", marks: [{ type: "bold" }] }] }] };
     expect(commentHtml({ body: "粗", doc }, false)).toBe("<p><strong>粗</strong></p>");
+  });
+
+  it("gives the editor a safe document for old or malformed comments", () => {
+    expect(commentDocument({ body: "旧评论", doc: null })).toEqual({
+      type: "doc",
+      content: [{ type: "paragraph", content: [{ type: "text", text: "旧评论" }] }],
+    });
+    expect(commentDocument({ body: "保底", doc: ["not a document"] })).toEqual({
+      type: "doc",
+      content: [{ type: "paragraph", content: [{ type: "text", text: "保底" }] }],
+    });
   });
 
   it("turns a time label into a button only where there is a player to jump", () => {

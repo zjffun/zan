@@ -26,6 +26,7 @@ export const LIMITS = {
   postEdit: { key: "post-edit", limit: 60, windowMs: tenMinutes },
   postDelete: { key: "post-delete", limit: 30, windowMs: tenMinutes },
   comment: { key: "comment", limit: 20, windowMs: tenMinutes },
+  commentEdit: { key: "comment-edit", limit: 60, windowMs: tenMinutes },
   commentDelete: { key: "comment-delete", limit: 60, windowMs: tenMinutes },
   profileEdit: { key: "profile", limit: 10, windowMs: tenMinutes },
   /** the e-mail address and the password: sends mail, and is what somebody who got hold of a session would do first */

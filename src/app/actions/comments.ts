@@ -22,6 +22,8 @@ const inputSchema = z.object({
   seekable: z.boolean().default(false),
 });
 
+const editInputSchema = inputSchema.pick({ doc: true, seekable: true }).extend({ commentId: z.uuid() });
+
 export async function addComment(input: {
   postId: string;
   parentId?: string | null;
@@ -49,11 +51,38 @@ export async function addComment(input: {
     if (error.code === POSTGRES_CHECK_VIOLATION) return fail("只能回复一级评论。");
     return failLogged("comments.add", error, "评论失败。", { post: parsed.data.postId });
   }
-  const row = data as unknown as Omit<CommentData, "author" | "html"> & { author: AuthorRef | null };
+  const row = data as unknown as Omit<CommentData, "author" | "html" | "doc"> & { author: AuthorRef | null };
   return {
     ok: true,
-    comment: { ...row, author: row.author ?? { id: user.id, nickname: "我" }, html: commentHtml({ body: text, doc }, parsed.data.seekable) },
+    comment: { ...row, author: row.author ?? { id: user.id, nickname: "我" }, doc, html: commentHtml({ body: text, doc }, parsed.data.seekable) },
   };
+}
+
+/** Updates a comment's content. Only the comment's author may edit it (enforced again by RLS). */
+export async function editComment(input: {
+  commentId: string;
+  doc: unknown;
+  seekable?: boolean;
+}): Promise<ActionResult<{ doc: CommentData["doc"]; html: string }>> {
+  const parsed = editInputSchema.safeParse(input);
+  if (!parsed.success) return fail(zodMessage(parsed.error));
+  const prepared = prepareComment(parsed.data.doc);
+  if (!prepared.ok) return fail(prepared.error);
+  const { doc, text } = prepared.value;
+  const user = await getCurrentUser();
+  if (!user) return fail("请先登录。");
+  const limited = await enforce(LIMITS.commentEdit, user.id);
+  if (!limited.ok) return fail(`操作太频繁，请 ${limited.retryAfter} 秒后再试。`);
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("comments")
+    .update({ body: text, doc })
+    .eq("id", parsed.data.commentId)
+    .select("id");
+  if (error) return failLogged("comments.edit", error, "保存失败。", { comment: parsed.data.commentId });
+  if (!data || data.length === 0) return fail("没有权限编辑这条评论。");
+  return { ok: true, doc, html: commentHtml({ body: text, doc }, parsed.data.seekable) };
 }
 
 /** Deletes a comment (and the replies under it). Allowed for its author and for the post's author. */

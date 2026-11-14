@@ -876,12 +876,16 @@ select t.raises($$ insert into public.comments (post_id, author, body)
   'cannot comment as someone else', '42501');
 select t.raises($$ insert into public.comments (post_id, body, created_at) values ('60000000-0000-0000-0000-0000000000c1', 'backdated', '2000-01-01') $$,
   'created_at is not client-writable', '42501');
-select t.raises($$ update public.comments set body = 'edited' where body = 'nice source' $$,
-  'comments cannot be edited, not even by their author', '42501');
+select t.ok(t.rows($$ update public.comments set body = 'edited' where body = 'nice source' $$) = 1,
+  'comment authors can edit their own comment');
+select t.raises($$ update public.comments set created_at = now() where body = 'edited' $$,
+  'an author cannot change comment metadata', '42501');
 
 reset role;
 select set_config('request.jwt.claims', json_build_object('sub', :A::text)::text, true);
 set local role authenticated;
+select t.ok(t.rows($$ update public.comments set body = 'rewritten by post author' where id = '70000000-0000-0000-0000-000000000001' $$) = 0,
+  'the post author cannot rewrite somebody else''s comment');
 insert into public.comments (post_id, body) values ('60000000-0000-0000-0000-0000000000a2', 'second note to self');
 select t.ok((select comment_count from public.posts where id = '60000000-0000-0000-0000-0000000000a2') = 2,
   'the author can comment on their own private post');
@@ -920,8 +924,8 @@ select t.raises($$ insert into public.comments (post_id, body, doc) values ('600
 select t.raises($$ insert into public.comments (post_id, body, doc)
                    values ('60000000-0000-0000-0000-0000000000c1', 'huge', jsonb_build_object('type', 'doc', 'x', repeat('x', 60000))) $$,
   'and not huge', '23514');
-select t.raises($$ update public.comments set doc = '{"type":"doc"}' where body = 'bold' $$,
-  'the document cannot be changed afterwards', '42501');
+select t.ok(t.rows($$ update public.comments set body = 'plain', doc = '{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"plain"}]}]}' where body = 'bold' $$) = 1,
+  'the author can update the rich document and its matching plain text');
 rollback;
 
 begin;

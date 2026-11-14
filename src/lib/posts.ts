@@ -3,7 +3,7 @@ import { cacheLife, cacheTag } from "next/cache";
 import { FEED_PAGE_SIZE, teaserOf } from "./feed";
 import { createAnonClient } from "./supabase/anon";
 import { createClient } from "./supabase/server";
-import { commentHtml } from "./comment-html";
+import { commentDocument, commentHtml } from "./comment-html";
 import { TAG_KINDS, type AuthorRef, type CommentData, type PostCardData, type PostDetailData, type PostSource, type TagKind, type TagRef, type Visibility } from "./types";
 
 /**
@@ -199,10 +199,11 @@ export async function getComments(postId: string, seekable: boolean): Promise<Co
     .order("created_at", { ascending: false })
     .limit(500);
   if (error) throw new Error(`could not load comments: ${error.message}`);
-  type Row = Omit<CommentData, "author" | "html"> & { author: AuthorRef | null; body: string; doc: unknown };
+  type Row = Omit<CommentData, "author" | "html" | "doc"> & { author: AuthorRef | null; body: string; doc: unknown };
   return ((data ?? []) as unknown as Row[]).reverse().map(({ body, doc, author, ...row }) => ({
     ...row,
     author: author ?? GONE_AUTHOR,
+    doc: commentDocument({ body, doc }),
     html: commentHtml({ body, doc }, seekable),
   }));
 }

@@ -98,6 +98,8 @@ export interface CommentData {
   post_id: string;
   parent_id: string | null;
   author: AuthorRef;
+  /** Clean TipTap JSON used when the author edits the comment. */
+  doc: import("./doc/schema").DocNode;
   /** the comment as HTML, rendered on the server from the whitelist (see lib/comment-html.ts) */
   html: string;
   created_at: string;

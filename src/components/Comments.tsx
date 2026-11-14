@@ -4,7 +4,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
-import { addComment, deleteComment } from "@/app/actions/comments";
+import { addComment, deleteComment, editComment } from "@/app/actions/comments";
 import { attempt } from "@/lib/attempt";
 import { EMPTY_DOC, type DocNode } from "@/lib/doc/schema";
 import { plainTextLength } from "@/lib/doc/text";
@@ -45,6 +45,7 @@ export function Comments({
   const { seek } = usePlayer();
   const [comments, setComments] = useState(initial);
   const [replyTo, setReplyTo] = useState<string | null>(null);
+  const [editing, setEditing] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // newest comment first; the replies under one stay oldest first, so that they read as a conversation
@@ -61,6 +62,7 @@ export function Comments({
   }
 
   function renderComment(comment: CommentData) {
+    const canEdit = viewerId === comment.author.id;
     const canDelete = viewerId !== null && (viewerId === comment.author.id || viewerId === postAuthorId);
     return (
       <li key={comment.id} className="flex gap-2.5">
@@ -76,19 +78,54 @@ export function Comments({
             {comment.author.id === postAuthorId ? <span className="chip ml-1.5">作者</span> : null}
             <RelativeTime className="ml-2" iso={comment.created_at} title={timeFormat.format(new Date(comment.created_at))} />
           </p>
-          <RichHtml html={comment.html} onChip={seek} className="comment-body mt-0.5" />
-          <p className="mt-1 flex gap-3 text-xs text-muted">
-            {comment.parent_id === null ? (
-              <button type="button" className="tap hover:text-ink" onClick={() => setReplyTo(replyTo === comment.id ? null : comment.id)}>
-                回复
-              </button>
-            ) : null}
-            {canDelete ? (
-              <button type="button" className="tap hover:text-danger" onClick={() => remove(comment)}>
-                删除
-              </button>
-            ) : null}
-          </p>
+          {editing === comment.id ? (
+            <div className="mt-2">
+              <CommentEditForm
+                comment={comment}
+                seekable={seekable}
+                onSaved={({ doc, html }) => {
+                  setComments((prev) => prev.map((item) => (item.id === comment.id ? { ...item, doc, html } : item)));
+                  setEditing(null);
+                }}
+                onCancel={() => setEditing(null)}
+              />
+            </div>
+          ) : (
+            <>
+              <RichHtml html={comment.html} onChip={seek} className="comment-body mt-0.5" />
+              <p className="mt-1 flex gap-3 text-xs text-muted">
+                {comment.parent_id === null ? (
+                  <button
+                    type="button"
+                    className="tap hover:text-ink"
+                    onClick={() => {
+                      setEditing(null);
+                      setReplyTo(replyTo === comment.id ? null : comment.id);
+                    }}
+                  >
+                    回复
+                  </button>
+                ) : null}
+                {canEdit ? (
+                  <button
+                    type="button"
+                    className="tap hover:text-ink"
+                    onClick={() => {
+                      setReplyTo(null);
+                      setEditing(comment.id);
+                    }}
+                  >
+                    编辑
+                  </button>
+                ) : null}
+                {canDelete ? (
+                  <button type="button" className="tap hover:text-danger" onClick={() => remove(comment)}>
+                    删除
+                  </button>
+                ) : null}
+              </p>
+            </>
+          )}
           {comment.parent_id === null ? (
             <>
               {repliesOf(comment.id).length > 0 ? (
@@ -146,6 +183,72 @@ export function Comments({
         <p className="mt-5 text-center text-sm text-muted">还没有评论，来说第一句。</p>
       )}
     </section>
+  );
+}
+
+function CommentEditForm({
+  comment,
+  seekable,
+  onSaved,
+  onCancel,
+}: {
+  comment: CommentData;
+  seekable: boolean;
+  onSaved: (value: Pick<CommentData, "doc" | "html">) => void;
+  onCancel: () => void;
+}) {
+  const router = useRouter();
+  const [doc, setDoc] = useState<DocNode>(comment.doc);
+  const [empty, setEmpty] = useState(plainTextLength(comment.doc) === 0);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const length = empty ? 0 : plainTextLength(doc);
+
+  async function save() {
+    if (busy || empty) return;
+    setBusy(true);
+    setError(null);
+    const result = await attempt(() => editComment({ commentId: comment.id, doc, seekable }));
+    setBusy(false);
+    if (!result.ok) return setError(result.error);
+    onSaved(result);
+    router.refresh();
+  }
+
+  return (
+    <div>
+      <NoteEditor
+        variant="comment"
+        initial={comment.doc}
+        autofocus
+        label="编辑评论"
+        placeholder="编辑评论"
+        onChange={(next, isEmpty) => {
+          setDoc(next);
+          setEmpty(isEmpty);
+        }}
+        onSubmit={() => void save()}
+      />
+      <div className="mt-1.5 flex items-center gap-2">
+        {error ? (
+          <span role="alert" className="text-xs text-danger">
+            {error}
+          </span>
+        ) : (
+          <span className={`text-xs tabular-nums ${length > MAX_COMMENT_LENGTH ? "text-danger" : "text-muted"}`}>
+            {length}/{MAX_COMMENT_LENGTH}
+          </span>
+        )}
+        <span className="ml-auto flex gap-2">
+          <button type="button" className="btn btn-sm" onClick={onCancel} disabled={busy}>
+            取消
+          </button>
+          <button type="button" className="btn btn-primary btn-sm" onClick={save} disabled={busy || empty} title="Cmd/Ctrl + Enter">
+            {busy ? "保存中…" : "保存"}
+          </button>
+        </span>
+      </div>
+    </div>
   );
 }
 
