@@ -195,11 +195,12 @@ export async function getComments(postId: string, seekable: boolean): Promise<Co
     .from("comments")
     .select("id, post_id, parent_id, body, doc, created_at, author:profiles(id, nickname)")
     .eq("post_id", postId)
-    .order("created_at", { ascending: true })
+    // the newest 500 (if there are more than that, it is the oldest that are left out), handed on oldest first
+    .order("created_at", { ascending: false })
     .limit(500);
   if (error) throw new Error(`could not load comments: ${error.message}`);
   type Row = Omit<CommentData, "author" | "html"> & { author: AuthorRef | null; body: string; doc: unknown };
-  return ((data ?? []) as unknown as Row[]).map(({ body, doc, author, ...row }) => ({
+  return ((data ?? []) as unknown as Row[]).reverse().map(({ body, doc, author, ...row }) => ({
     ...row,
     author: author ?? GONE_AUTHOR,
     html: commentHtml({ body, doc }, seekable),

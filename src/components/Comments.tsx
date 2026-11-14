@@ -47,7 +47,9 @@ export function Comments({
   const [replyTo, setReplyTo] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const topLevel = comments.filter((c) => c.parent_id === null);
+  // newest comment first; the replies under one stay oldest first, so that they read as a conversation
+  // (`comments` itself is in the order they were written, which is also where a new one is appended)
+  const topLevel = comments.filter((c) => c.parent_id === null).reverse();
   const repliesOf = (id: string) => comments.filter((c) => c.parent_id === id);
 
   async function remove(comment: CommentData) {
